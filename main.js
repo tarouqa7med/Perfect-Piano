@@ -804,9 +804,7 @@ function persistBackups(backups) {
   const sorted = Array.from(backups);
   sorted.sort((a, b) => b.createdAt - a.createdAt);
   localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
-  if (externalBackupFileHandle) {
-    writeBackupsFileIfHandle(sorted);
-  }
+  writeBackupsFileIfHandle(sorted);
 }
 
 async function loadBackupsFromExternalJson() {
@@ -821,44 +819,6 @@ async function loadBackupsFromExternalJson() {
   }
 }
 
-function downloadJsonFile(content, filename = 'my-backups.json') {
-  const blob = new Blob([content], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-async function saveBackupsToJsonFile(backups) {
-  const fileContent = JSON.stringify(backups, null, 2);
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: 'my-backups.json',
-        types: [{
-          description: 'Piano backup JSON',
-          accept: { 'application/json': ['.json'] },
-        }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(fileContent);
-      await writable.close();
-      externalBackupFileHandle = handle;
-      document.getElementById('rebindHint').textContent = '✓ تم حفظ الباكابات في my-backups.json';
-      return;
-    } catch (err) {
-      if (err.name !== 'AbortError') console.warn('Save backups to JSON failed', err);
-    }
-  }
-
-  downloadJsonFile(fileContent, 'my-backups.json');
-  document.getElementById('rebindHint').textContent = '✓ تم تنزيل my-backups.json إلى جهازك';
-}
-
 async function writeBackupsFileIfHandle(backups) {
   if (!externalBackupFileHandle) return;
   try {
@@ -871,6 +831,27 @@ async function writeBackupsFileIfHandle(backups) {
   }
 }
 
+async function requestJsonFileHandle() {
+  if (externalBackupFileHandle || !('showOpenFilePicker' in window)) return;
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{
+        description: 'Piano backup JSON',
+        accept: { 'application/json': ['.json'] },
+      }],
+      excludeAcceptAllOption: false,
+      multiple: false,
+    });
+    if (!handle) return;
+    externalBackupFileHandle = handle;
+    const backups = loadBackups();
+    await writeBackupsFileIfHandle(backups);
+    document.getElementById('rebindHint').textContent = '✓ تم تفعيل الحفظ التلقائي للباكابات';
+  } catch (err) {
+    if (err.name !== 'AbortError') console.warn('JSON file handle request failed', err);
+  }
+}
+
 async function initializeBackups() {
   const external = await loadBackupsFromExternalJson();
   if (external) {
@@ -878,6 +859,8 @@ async function initializeBackups() {
     document.getElementById('rebindHint').textContent = '✓ تم تحميل الباكابات من ../json/my-backups.json';
   }
   populateLayoutSelect();
+  document.addEventListener('pointerdown', requestJsonFileHandle, { once: true });
+  document.addEventListener('keydown', requestJsonFileHandle, { once: true });
 }
 
 function ensureDefaultLayout(backups) {
@@ -1089,43 +1072,6 @@ document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => 
   activeBackupId = '';
   populateLayoutSelect();
   document.getElementById('rebindHint').textContent = '✓ تم حذف كل الباكابات';
-});
-
-document.getElementById('exportJsonBtn')?.addEventListener('click', async () => {
-  await saveBackupsToJsonFile(loadBackups());
-});
-
-document.getElementById('importJsonBtn')?.addEventListener('click', () => {
-  document.getElementById('jsonImportInput')?.click();
-});
-
-document.getElementById('reloadJsonBtn')?.addEventListener('click', async () => {
-  const external = await loadBackupsFromExternalJson();
-  if (external) {
-    persistBackups(external);
-    populateLayoutSelect();
-    document.getElementById('rebindHint').textContent = '✓ تم إعادة تحميل الباكابات من ../json/my-backups.json';
-  } else {
-    document.getElementById('rebindHint').textContent = '✕ لم يتم العثور على ../json/my-backups.json';
-  }
-});
-
-document.getElementById('jsonImportInput')?.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    if (!Array.isArray(parsed)) throw new Error('Invalid backup JSON');
-    persistBackups(ensureDefaultLayout(parsed));
-    populateLayoutSelect();
-    document.getElementById('rebindHint').textContent = '✓ تم استيراد الباكابات من الملف';
-  } catch (err) {
-    alert('فشل تحميل ملف JSON: ' + err.message);
-    console.warn(err);
-  } finally {
-    e.target.value = '';
-  }
 });
 
 
