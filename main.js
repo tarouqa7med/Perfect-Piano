@@ -691,6 +691,20 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // LAYOUT BACKUP (save/load octave+keys+instrument+rebinds)
 // ═══════════════════════════════════════════════════════════
 const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
+const DEFAULT_LAYOUT_ID = 'default-layout-v1';
+
+function getDefaultLayoutState() {
+  return {
+    id: DEFAULT_LAYOUT_ID,
+    name: 'Default',
+    octave: 3,
+    keysCount: 49,
+    instrument: 'piano',
+    rebinds: {},
+    createdAt: 0,
+    protected: true,
+  };
+}
 
 function getCurrentLayoutState() {
   // Determine current keys shown / octave from UI and state.
@@ -726,16 +740,32 @@ function getCurrentLayoutState() {
 function loadBackups() {
   try {
     const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return ensureDefaultLayout([]);
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return ensureDefaultLayout(Array.isArray(parsed) ? parsed : []);
   } catch (e) {
-    return [];
+    return ensureDefaultLayout([]);
   }
 }
 
 function persistBackups(backups) {
-  localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(backups));
+  const sorted = Array.from(backups);
+  sorted.sort((a, b) => {
+    if (a.protected && !b.protected) return -1;
+    if (!a.protected && b.protected) return 1;
+    return b.createdAt - a.createdAt;
+  });
+  localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
+}
+
+function ensureDefaultLayout(backups) {
+  if (!Array.isArray(backups)) backups = [];
+  const hasDefault = backups.some(b => b && b.id === DEFAULT_LAYOUT_ID);
+  if (!hasDefault) {
+    backups.unshift(getDefaultLayoutState());
+    persistBackups(backups);
+  }
+  return backups;
 }
 
 function populateLayoutSelect() {
@@ -753,7 +783,9 @@ function populateLayoutSelect() {
   backups.forEach(b => {
     const opt = document.createElement('option');
     opt.value = b.id;
-    opt.textContent = `${b.name ?? 'Layout'} (oct ${b.octave}, ${b.keysCount} keys)`;
+    opt.textContent = b.id === DEFAULT_LAYOUT_ID
+      ? `${b.name} (default)`
+      : `${b.name ?? 'Layout'} (oct ${b.octave}, ${b.keysCount} keys)`;
     sel.appendChild(opt);
   });
 
@@ -761,19 +793,15 @@ function populateLayoutSelect() {
 }
 
 function applyLayoutState(state) {
-  // 1) set octave + keys + instrument (these call buildKeyboard internally)
+  // 1) set octave + keys + instrument.
   startOctave = Math.max(0, Math.min(6, state.octave));
   totalKeys = parseInt(state.keysCount);
   currentInstrument = state.instrument;
 
-  // Update UI active buttons
-  document.querySelectorAll('#octDownBtn, #octUpBtn').forEach(() => {});
   document.getElementById('octaveVal').textContent = startOctave;
-
   document.querySelectorAll('#keysCtrl button').forEach(btn => {
     btn.classList.toggle('active', parseInt(btn.dataset.keys) === totalKeys);
   });
-
   document.querySelectorAll('#instrumentCtrl button').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.inst === currentInstrument);
   });
@@ -792,10 +820,10 @@ document.getElementById('saveLayoutBtn').addEventListener('click', () => {
 
   const state = getCurrentLayoutState();
   state.name = name;
+  state.protected = false;
 
   const backups = loadBackups();
   backups.unshift(state);
-  // limit size
   const MAX = 20;
   persistBackups(backups.slice(0, MAX));
 
@@ -815,6 +843,10 @@ document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
   const backups = loadBackups();
   const idx = backups.findIndex(b => b.id === id);
   if (idx === -1) return;
+  if (backups[idx].protected) {
+    alert('لا يمكن حذف النسخة الافتراضية');
+    return;
+  }
 
   const ok = confirm('Delete this saved layout?');
   if (!ok) return;
@@ -828,7 +860,6 @@ document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
 
 // Load from select
 document.getElementById('layoutSelect').addEventListener('change', (e) => {
-
   const id = e.target.value;
   if (!id) return;
 
@@ -842,16 +873,14 @@ document.getElementById('layoutSelect').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-// Clear all existing backups on load (as requested)
-try { localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch (e) {}
-
-// Initialize backup select
+// Initialize backup select and ensure default layout exists.
 populateLayoutSelect();
 
 document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => {
   const ok = confirm('Delete ALL saved layouts? This cannot be undone.');
   if (!ok) return;
-  try { localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch (e) {}
+  const backups = loadBackups().filter(b => b.protected);
+  persistBackups(backups);
   populateLayoutSelect();
   document.getElementById('rebindHint').textContent = '✓ تم حذف كل الباكابات';
 });
