@@ -735,6 +735,7 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
 const DEFAULT_LAYOUT_ID = 'default-layout-v1';
+let activeBackupId = '';
 
 function getDefaultLayoutState() {
   return {
@@ -745,7 +746,6 @@ function getDefaultLayoutState() {
     instrument: 'piano',
     rebinds: {},
     createdAt: 0,
-    protected: true,
   };
 }
 
@@ -787,11 +787,7 @@ function loadBackups() {
 
 function persistBackups(backups) {
   const sorted = Array.from(backups);
-  sorted.sort((a, b) => {
-    if (a.protected && !b.protected) return -1;
-    if (!a.protected && b.protected) return 1;
-    return b.createdAt - a.createdAt;
-  });
+  sorted.sort((a, b) => b.createdAt - a.createdAt);
   localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
 }
 
@@ -803,6 +799,21 @@ function ensureDefaultLayout(backups) {
     persistBackups(backups);
   }
   return backups;
+}
+
+function autoSaveSelectedBackup() {
+  if (!activeBackupId) return;
+  const backups = loadBackups();
+  const idx = backups.findIndex(b => b.id === activeBackupId);
+  if (idx === -1) return;
+
+  const state = getCurrentLayoutState();
+  state.id = activeBackupId;
+  state.name = backups[idx].name || 'Layout';
+  state.createdAt = backups[idx].createdAt || Date.now();
+
+  backups[idx] = state;
+  persistBackups(backups);
 }
 
 function findBackupByName(backups, name, excludeId = null) {
@@ -871,15 +882,10 @@ document.getElementById('saveLayoutBtn').addEventListener('click', () => {
   const duplicate = findBackupByName(backups, trimmedName);
   if (duplicate) {
     if (!confirmOverrideExistingLayout(trimmedName)) return;
-    if (duplicate.protected) {
-      alert('لا يمكن استبدال النسخة الافتراضية المحمية هنا. اختر اسمًا آخر.');
-      return;
-    }
   }
 
   const state = getCurrentLayoutState();
   state.name = trimmedName;
-  state.protected = false;
 
   if (duplicate) {
     state.id = duplicate.id;
@@ -893,7 +899,9 @@ document.getElementById('saveLayoutBtn').addEventListener('click', () => {
   const MAX = 20;
   persistBackups(backups.slice(0, MAX));
 
+  activeBackupId = state.id;
   populateLayoutSelect();
+  document.getElementById('layoutSelect').value = activeBackupId;
   document.getElementById('rebindHint').textContent = '✓ تم حفظ ترتيب المفاتيح';
 });
 
@@ -919,10 +927,6 @@ document.getElementById('editLayoutBtn').addEventListener('click', () => {
   const duplicate = findBackupByName(backups, trimmedName, id);
   if (duplicate) {
     if (!confirmOverrideExistingLayout(trimmedName)) return;
-    if (duplicate.protected) {
-      alert('لا يمكن استبدال النسخة الافتراضية المحمية هنا. اختر اسمًا آخر.');
-      return;
-    }
     const dupIdx = backups.findIndex(b => b.id === duplicate.id);
     if (dupIdx !== -1) backups.splice(dupIdx, 1);
     if (dupIdx < idx) {
@@ -939,6 +943,7 @@ document.getElementById('editLayoutBtn').addEventListener('click', () => {
 
   backups[idx] = state;
   persistBackups(backups);
+  activeBackupId = id;
   populateLayoutSelect();
   sel.value = id;
   document.getElementById('rebindHint').textContent = '✓ تم تحديث الباكاب المحدد';
@@ -955,16 +960,13 @@ document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
   const backups = loadBackups();
   const idx = backups.findIndex(b => b.id === id);
   if (idx === -1) return;
-  if (backups[idx].protected) {
-    alert('لا يمكن حذف النسخة الافتراضية');
-    return;
-  }
 
   const ok = confirm('Delete this saved layout?');
   if (!ok) return;
 
   backups.splice(idx, 1);
   persistBackups(backups);
+  if (activeBackupId === id) activeBackupId = '';
   populateLayoutSelect();
   sel.value = '';
   document.getElementById('rebindHint').textContent = '✓ تم حذف الباكاب المحدد';
@@ -973,6 +975,7 @@ document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
 // Load from select
 document.getElementById('layoutSelect').addEventListener('change', (e) => {
   const id = e.target.value;
+  activeBackupId = id;
   if (!id) return;
 
   const backups = loadBackups();
@@ -988,11 +991,13 @@ document.getElementById('layoutSelect').addEventListener('change', (e) => {
 // Initialize backup select and ensure default layout exists.
 populateLayoutSelect();
 
+window.addEventListener('beforeunload', autoSaveSelectedBackup);
+
 document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => {
   const ok = confirm('Delete ALL saved layouts? This cannot be undone.');
   if (!ok) return;
-  const backups = loadBackups().filter(b => b.protected);
-  persistBackups(backups);
+  persistBackups([]);
+  activeBackupId = '';
   populateLayoutSelect();
   document.getElementById('rebindHint').textContent = '✓ تم حذف كل الباكابات';
 });
