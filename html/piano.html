@@ -6,8 +6,32 @@
     <title>Virtual Piano Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/main.css">
+    <style>
+      /* Splash overlay shown briefly on page load */
+      .splash-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #12121a;
+        color: #fff;
+        z-index: 9999;
+        flex-direction: column;
+        gap: 12px;
+        font-family: inherit;
+      }
+      .splash-overlay .message { font-size: 18px; opacity: .95; }
+      .splash-overlay .sub { opacity: .8; font-size: 13px }
+      .splash-hidden { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s ease; }
+    </style>
   </head>
 <body>
+
+  <div id="splash" class="splash-overlay" aria-hidden="false">
+    <div class="message">You will redirect to the piano page in 3 seconds...</div>
+    <div class="sub">Loading Virtual Piano Studio…</div>
+  </div>
 
   <!-- ══ HEADER ══ -->
   <header>
@@ -153,7 +177,22 @@
     <div class="shortcuts-hint" style="color: var(--accent);">Virtual Piano Studio v2.0</div>
   </footer>
 
-  <script src="main.js"></script>
+  <script src="../main.js"></script>
+  <script>
+    // Show splash for 3s then remove it so the full UI becomes interactive.
+    (function() {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      // If user navigated from index.html, message is already accurate; keep it consistent.
+      setTimeout(() => {
+        splash.classList.add('splash-hidden');
+        splash.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+          if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 420);
+      }, 3000);
+    })();
+  </script>
 
 </body>
 </html>

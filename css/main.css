@@ -41,7 +41,7 @@
   --glow: rgba(139,105,20,0.3);
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; scrollbar-color: transparent transparent; }
 
 body {
   background: var(--bg);

@@ -748,7 +748,7 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
 const DEFAULT_LAYOUT_ID = 'default-layout-v1';
-const EXTERNAL_BACKUP_PATH = 'json/my-backups.json';
+const EXTERNAL_BACKUP_PATH = '../json/my-backups.json';
 let activeBackupId = '';
 let externalBackupFileHandle = null;
 
@@ -875,7 +875,7 @@ async function initializeBackups() {
   const external = await loadBackupsFromExternalJson();
   if (external) {
     persistBackups(external);
-    document.getElementById('rebindHint').textContent = '✓ تم تحميل الباكابات من json/my-backups.json';
+    document.getElementById('rebindHint').textContent = '✓ تم تحميل الباكابات من ../json/my-backups.json';
   }
   populateLayoutSelect();
 }
@@ -1104,9 +1104,9 @@ document.getElementById('reloadJsonBtn')?.addEventListener('click', async () => 
   if (external) {
     persistBackups(external);
     populateLayoutSelect();
-    document.getElementById('rebindHint').textContent = '✓ تم إعادة تحميل الباكابات من json/my-backups.json';
+    document.getElementById('rebindHint').textContent = '✓ تم إعادة تحميل الباكابات من ../json/my-backups.json';
   } else {
-    document.getElementById('rebindHint').textContent = '✕ لم يتم العثور على json/my-backups.json';
+    document.getElementById('rebindHint').textContent = '✕ لم يتم العثور على ../json/my-backups.json';
   }
 });
 
