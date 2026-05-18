@@ -218,7 +218,44 @@ const KEY_POOL = (() => {
   return chars.filter(k => ![' ','z','x'].includes(k));
 })();
 
+function normalizeKeyName(rawKey) {
+  const key = String(rawKey || '').toLowerCase();
+  const map = {
+    pageup: 'pgup',
+    pagedown: 'pgdn',
+    arrowup: 'up',
+    arrowdown: 'down',
+    arrowleft: 'left',
+    arrowright: 'right',
+    ' ': 'space',
+    escape: 'esc',
+    delete: 'del',
+  };
+  return map[key] || key;
+}
 
+function displayKeyName(key) {
+  const normalized = normalizeKeyName(key);
+  const displayMap = {
+    pgup: 'PgUp',
+    pgdn: 'PgDn',
+    up: '↑',
+    down: '↓',
+    left: '←',
+    right: '→',
+    space: 'Space',
+    esc: 'Esc',
+    del: 'Del',
+    enter: 'Enter',
+    shift: 'Shift',
+    ctrl: 'Ctrl',
+    alt: 'Alt',
+    tab: 'Tab',
+    capslock: 'CapsLock',
+    meta: 'Meta',
+  };
+  return displayMap[normalized] || normalized.toUpperCase();
+}
 
 // Per-midi maps — fully independent, each piano key has its own binding
 let midiToKey = {};   // midiNote -> key char
@@ -299,14 +336,13 @@ function buildKeyboard() {
   let whiteIdxMap = 0;
   let blackIdxMap = 0;
 
-
   for (let m = startMidi; m <= endMidi; m++) {
     const semitone = m % 12;
     const defaultKey = isBlackSemitone(semitone)
-      ? BLACK_KEY_POOL[blackIdx++ % BLACK_KEY_POOL.length]
-      : WHITE_KEY_POOL[whiteIdx++ % WHITE_KEY_POOL.length];
+      ? BLACK_KEY_POOL[blackIdxMap++ % BLACK_KEY_POOL.length]
+      : WHITE_KEY_POOL[whiteIdxMap++ % WHITE_KEY_POOL.length];
 
-    const boundKey = customBindings[m] !== undefined ? customBindings[m] : defaultKey;
+    const boundKey = normalizeKeyName(customBindings[m] !== undefined ? customBindings[m] : defaultKey);
     midiToKey[m] = boundKey;
   }
 
@@ -363,7 +399,7 @@ function updateKeyLabels() {
     const kbd = el.querySelector('.key-kbd');
     if (label) label.style.opacity = showLabels ? '1' : '0';
     if (kbd) {
-      kbd.textContent = midiToKey[midi_int] ? midiToKey[midi_int].toUpperCase() : '';
+      kbd.textContent = midiToKey[midi_int] ? displayKeyName(midiToKey[midi_int]) : '';
       kbd.style.opacity = showKbd ? '1' : '0';
     }
   });
@@ -477,7 +513,7 @@ const pressedPhysicalKeys = new Set();
 
 document.addEventListener('keydown', e => {
   if (e.repeat) return;
-  const key = e.key.toLowerCase();
+  const key = normalizeKeyName(e.key);
 
   if (e.code === 'Space') {
     e.preventDefault();
@@ -503,7 +539,7 @@ document.addEventListener('keydown', e => {
 });
 
 document.addEventListener('keyup', e => {
-  const key = e.key.toLowerCase();
+  const key = normalizeKeyName(e.key);
 
   if (e.code === 'Space') {
     sustainActive = false;
@@ -545,7 +581,7 @@ function buildRebindList() {
 
     const kbdBadge = document.createElement('div');
     kbdBadge.className = 'rebind-kbd-badge';
-    kbdBadge.textContent = keyChar.toUpperCase();
+    kbdBadge.textContent = displayKeyName(keyChar);
     kbdBadge.id = `rebind-badge-${m}`;
 
     item.appendChild(noteSpan);
@@ -565,9 +601,14 @@ function selectRebind(midiNote, itemEl) {
 
 function assignRebind(key) {
   if (rebindTarget === null) return;
+  const normalizedKey = normalizeKeyName(key);
+  if (normalizedKey === 'space') {
+    document.getElementById('rebindHint').textContent = 'لا يمكن استخدام Space لإعادة التعيين';
+    return;
+  }
 
   // If this key already maps to another note, clear that binding
-  const oldMidi = keyToMidi[key];
+  const oldMidi = keyToMidi[normalizedKey];
   if (oldMidi !== undefined && oldMidi !== rebindTarget) {
     delete midiToKey[oldMidi];
     delete customBindings[oldMidi];
@@ -582,20 +623,22 @@ function assignRebind(key) {
   if (oldKey) delete keyToMidi[oldKey];
 
   // Assign
-  midiToKey[rebindTarget] = key;
-  keyToMidi[key] = rebindTarget;
-  customBindings[rebindTarget] = key; // persist across rebuilds
+  midiToKey[rebindTarget] = normalizedKey;
+  keyToMidi[normalizedKey] = rebindTarget;
+  customBindings[rebindTarget] = normalizedKey; // persist across rebuilds
+
+  const displayName = displayKeyName(normalizedKey);
 
   // Update rebind badge
   const badge = document.getElementById(`rebind-badge-${rebindTarget}`);
-  if (badge) badge.textContent = key.toUpperCase();
+  if (badge) badge.textContent = displayName;
 
   // Update key label on piano
   const el = keyElements[rebindTarget];
-  if (el && showKbd) el.querySelector('.key-kbd').textContent = key.toUpperCase();
+  if (el && showKbd) el.querySelector('.key-kbd').textContent = displayName;
 
   document.getElementById('rebindHint').textContent =
-    `✓ تم تعيين "${key.toUpperCase()}" → ${getNoteName(rebindTarget).full} · اختر مفتاحاً آخر للمتابعة`;
+    `✓ تم تعيين "${displayName}" → ${getNoteName(rebindTarget).full} · اختر مفتاحاً آخر للمتابعة`;
 
   document.querySelectorAll('.rebind-item').forEach(el => el.classList.remove('selected'));
   rebindTarget = null;
