@@ -875,6 +875,39 @@ document.getElementById('saveLayoutBtn').addEventListener('click', () => {
 });
 
 // Delete from select
+document.getElementById('editLayoutBtn').addEventListener('click', () => {
+  const sel = document.getElementById('layoutSelect');
+  const id = sel.value;
+  if (!id) {
+    document.getElementById('rebindHint').textContent = '— اختر باكاب من القائمة للتعديل';
+    return;
+  }
+
+  const backups = loadBackups();
+  const idx = backups.findIndex(b => b.id === id);
+  if (idx === -1) return;
+  if (backups[idx].protected) {
+    alert('لا يمكن تعديل النسخة الافتراضية');
+    return;
+  }
+
+  const currentName = backups[idx].name || 'Layout';
+  const name = prompt('اسم الباكاب الجديد:', currentName);
+  if (!name) return;
+
+  const state = getCurrentLayoutState();
+  state.id = id;
+  state.name = name;
+  state.protected = false;
+  state.createdAt = backups[idx].createdAt || Date.now();
+
+  backups[idx] = state;
+  persistBackups(backups);
+  populateLayoutSelect();
+  sel.value = id;
+  document.getElementById('rebindHint').textContent = '✓ تم تحديث الباكاب المحدد';
+});
+
 document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
   const sel = document.getElementById('layoutSelect');
   const id = sel.value;
