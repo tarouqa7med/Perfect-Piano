@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Piano Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="main.css">
+  </head>
+<body>
+
+  <!-- ══ HEADER ══ -->
+  <header>
+    <div class="logo">
+      Piano Studio
+      <span>Virtual Instrument</span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="themeBtn" data-tip="Toggle theme">🌓</button>
+      <button class="icon-btn" id="sustainBtn" data-tip="Hold: Sustain pedal (Space)">
+        <span class="sustain-led" id="sustainLed"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══ CONTROLS ══ -->
+  <div class="controls-panel">
+
+    <div class="ctrl-group">
+      <div class="ctrl-label">Instrument</div>
+      <div class="seg-ctrl" id="instrumentCtrl">
+        <button class="active" data-inst="piano">Piano</button>
+        <button data-inst="accordion">Accordion</button>
+        <button data-inst="organ">Organ</button>
+        <button data-inst="marimba">Marimba</button>
+        <button data-inst="synth">Synth</button>
+      </div>
+    </div>
+
+    <div class="ctrl-divider"></div>
+
+    <div class="ctrl-group">
+      <div class="ctrl-label">Keys shown</div>
+      <div class="seg-ctrl" id="keysCtrl">
+        <button data-keys="25">25</button>
+        <button data-keys="37">37</button>
+        <button class="active" data-keys="49">49</button>
+        <button data-keys="61">61</button>
+        <button data-keys="88">88</button>
+      </div>
+    </div>
+
+    <div class="ctrl-divider"></div>
+
+    <div class="ctrl-group">
+      <div class="ctrl-label">Octave</div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button class="icon-btn" id="octDownBtn" data-tip="Octave down (Z)">◀</button>
+        <div class="octave-indicator">
+          Start oct <span class="badge" id="octaveVal">3</span>
+        </div>
+        <button class="icon-btn" id="octUpBtn" data-tip="Octave up (X)">▶</button>
+      </div>
+    </div>
+
+    <div class="ctrl-divider"></div>
+
+    <div class="ctrl-group">
+      <div class="ctrl-label">Volume</div>
+      <div class="range-wrap">
+        <span class="vol-icon">🔈</span>
+        <input type="range" id="volRange" min="0" max="100" value="80">
+        <span class="range-val" id="volVal">80</span>
+      </div>
+    </div>
+
+    <div class="ctrl-divider"></div>
+
+    <div class="ctrl-group">
+      <div class="ctrl-label">Reverb</div>
+      <div class="range-wrap">
+        <span class="vol-icon">〰️</span>
+        <input type="range" id="reverbRange" min="0" max="100" value="30">
+        <span class="range-val" id="reverbVal">30</span>
+      </div>
+    </div>
+
+    <div class="ctrl-divider"></div>
+
+    <div class="ctrl-group">
+      <div class="ctrl-label">Display</div>
+      <div style="display:flex; gap:6px;">
+        <button class="icon-btn active" id="showLabelsBtn" data-tip="Show note names">🎵</button>
+        <button class="icon-btn active" id="showKbdBtn" data-tip="Show keyboard shortcuts">⌨️</button>
+        <button class="icon-btn" id="rebindBtn" data-tip="Remap keyboard keys">⚙️</button>
+        <button class="icon-btn" id="saveLayoutBtn" data-tip="Save current layout (octave/keys/instrument/rebinds)">💾</button>
+        <button class="icon-btn" id="deleteLayoutBtn" data-tip="Delete currently selected saved layout">🗑️</button>
+        <button class="icon-btn" id="deleteAllLayoutsBtn" data-tip="Delete ALL saved layouts">🧹</button>
+        <select id="layoutSelect" class="layout-select" data-tip="Load saved layout"></select>
+
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- ══ PIANO STAGE ══ -->
+  <div class="stage-wrap">
+    <div class="piano-stage">
+      <div class="stage-brand">Grand · Virtual Studio · 88</div>
+      <div class="keyboard-container">
+        <div class="keyboard" id="keyboard"></div>
+      </div>
+    </div>
+    <div class="piano-body-bottom"></div>
+  </div>
+
+  <!-- ══ INFO BAR ══ -->
+  <div class="info-bar">
+    <div class="active-note-display">
+      <div class="active-note-name" id="activeNoteName">—</div>
+      <div class="active-note-info" id="activeNoteInfo">Frequency: — Hz<br>Octave: —</div>
+    </div>
+    <div class="visualizer-wrap">
+      <canvas id="viz"></canvas>
+    </div>
+    <div class="active-keys-list" id="activeKeysList"></div>
+  </div>
+
+  <!-- ══ REBIND PANEL ══ -->
+  <div class="rebind-panel" id="rebindPanel">
+    <div class="rebind-panel-inner">
+      <div class="rebind-title">⌨️ Keyboard Mapping — اختر مفتاح بيانو ثم اضغط الزرار الجديد لتعيينه له</div>
+      <div class="rebind-hint" id="rebindHint">كل مفتاح بيانو له زرار كيبورد مستقل قابل للتغيير — اختر المفتاح المطلوب ثم اضغط الزرار الجديد.</div>
+      <div class="rebind-list" id="rebindList"></div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <footer>
+    <div class="shortcuts-hint">
+      <kbd>A</kbd>–<kbd>;</kbd> white keys &nbsp;|&nbsp;
+      <kbd>W</kbd><kbd>E</kbd><kbd>T</kbd><kbd>Y</kbd><kbd>U</kbd> black keys &nbsp;|&nbsp;
+      <kbd>Space</kbd> sustain &nbsp;|&nbsp;
+      <kbd>Z</kbd>/<kbd>X</kbd> octave &nbsp;|&nbsp;
+      <kbd>Shift+drag</kbd> glide
+    </div>
+    <div class="shortcuts-hint" style="color: var(--accent);">Virtual Piano Studio v2.0</div>
+  </footer>
+
+  <script src="main.js"></script>
+
+</body>
+</html>
