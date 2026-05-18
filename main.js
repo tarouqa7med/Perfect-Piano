@@ -886,10 +886,6 @@ document.getElementById('editLayoutBtn').addEventListener('click', () => {
   const backups = loadBackups();
   const idx = backups.findIndex(b => b.id === id);
   if (idx === -1) return;
-  if (backups[idx].protected) {
-    alert('لا يمكن تعديل النسخة الافتراضية');
-    return;
-  }
 
   const currentName = backups[idx].name || 'Layout';
   const name = prompt('اسم الباكاب الجديد:', currentName);
@@ -898,7 +894,7 @@ document.getElementById('editLayoutBtn').addEventListener('click', () => {
   const state = getCurrentLayoutState();
   state.id = id;
   state.name = name;
-  state.protected = false;
+  state.protected = backups[idx].protected;
   state.createdAt = backups[idx].createdAt || Date.now();
 
   backups[idx] = state;
@@ -946,7 +942,7 @@ document.getElementById('layoutSelect').addEventListener('change', (e) => {
   applyLayoutState(found);
   populateLayoutSelect();
   document.getElementById('rebindHint').textContent = '✓ تم تحميل ترتيب المفاتيح';
-  e.target.value = '';
+  e.target.value = id;
 });
 
 // Initialize backup select and ensure default layout exists.
