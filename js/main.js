@@ -746,9 +746,11 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 // LAYOUT BACKUP (save/load octave+keys+instrument+rebinds)
 // ═══════════════════════════════════════════════════════════
+// Storage: نخلي كل شيء داخل localStorage فقط (بدون محاولة كتابة ملف JSON من المتصفح)
 const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
 const DEFAULT_LAYOUT_ID = 'default-layout-v1';
 let activeBackupId = '';
+
 
 function getDefaultLayoutState() {
   return {
@@ -863,6 +865,31 @@ function populateLayoutSelect() {
   sel.value = backups.some(b => b.id === current) ? current : '';
 }
 
+function getAlphabeticalBindings() {
+  // رجّع rebinds حسب “الترتيب الأبجدي” للمفاتيح الفيزيائية
+  // (نفس فكرة auto-map: white notes تطابق حروف من A..Z بالتتابع، و black notes مع مجموعة ثانية)
+  const startMidi = (startOctave + 1) * 12;
+  const endMidi = startMidi + totalKeys - 1;
+
+  const WHITE_KEY_POOL = ['a','s','d','f','g','h','j','k','l',';','\'', 'enter','pgdn'];
+  const BLACK_KEY_POOL = ['w','e','t','y','u','o','p',']','\\','pgup'];
+
+  const isBlackSemitone = (s) => [1,3,6,8,10].includes(s);
+
+  let whiteIdxMap = 0;
+  let blackIdxMap = 0;
+
+  const binds = {};
+  for (let m = startMidi; m <= endMidi; m++) {
+    const semitone = m % 12;
+    const key = isBlackSemitone(semitone)
+      ? BLACK_KEY_POOL[blackIdxMap++ % BLACK_KEY_POOL.length]
+      : WHITE_KEY_POOL[whiteIdxMap++ % WHITE_KEY_POOL.length];
+    binds[m] = normalizeKeyName(key);
+  }
+  return binds;
+}
+
 function applyLayoutState(state) {
   // 1) set octave + keys + instrument.
   startOctave = Math.max(0, Math.min(6, state.octave));
@@ -883,6 +910,7 @@ function applyLayoutState(state) {
   // Rebuild keys (this will also buildRebindList and update labels)
   buildKeyboard();
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // Backup buttons (Create / Edit / Save / Change backup name)
@@ -917,6 +945,12 @@ function persistBackupById(id, maybeName = null) {
   persistBackups(backups.slice(0, MAX));
   return true;
 }
+
+function saveDraftIfEditModeActive() {
+  if (!editMode || !editingBackupId) return;
+  // draft: only update JSON name? requirement says save only on Save button
+}
+
 
 // CREATE (Create new + alphabetical key order + write JSON immediately)
 document.getElementById('createBackupBtn').addEventListener('click', () => {
