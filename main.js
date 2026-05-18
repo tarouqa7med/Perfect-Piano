@@ -295,8 +295,9 @@ function buildKeyboard() {
   // semitone mapping within an octave: 1,3,6,8,10 => black; others => white
   const isBlackSemitone = (s) => [1,3,6,8,10].includes(s);
 
-  let whiteIdx2 = 0;
-  let blackIdx2 = 0;
+  // counters for default mapping pool
+  let whiteIdxMap = 0;
+  let blackIdxMap = 0;
 
 
   for (let m = startMidi; m <= endMidi; m++) {
