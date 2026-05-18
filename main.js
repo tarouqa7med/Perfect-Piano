@@ -760,14 +760,8 @@ function getCurrentLayoutState() {
   const instrument = selectedInstBtn ? selectedInstBtn.dataset.inst : currentInstrument;
 
   // Rebinds (customBindings is midiNote -> key char)
-  // Persist only keys inside current visible range so load can apply consistently.
-  const startMidi = (octave + 1) * 12;
-  const endMidi = startMidi + keysCount - 1;
-
-  const rebinds = {};
-  for (let m = startMidi; m <= endMidi; m++) {
-    if (customBindings[m] !== undefined) rebinds[m] = customBindings[m];
-  }
+  // Persist all current custom bindings so backup restores the exact key order.
+  const rebinds = { ...customBindings };
 
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
