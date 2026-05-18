@@ -283,6 +283,8 @@ header {
   user-select: none;
   margin: 0 auto;
   width: fit-content;
+  will-change: transform;
+  -webkit-transform: translateZ(0);
 }
 
 /* ── WHITE KEYS ── */
@@ -293,6 +295,9 @@ header {
   transition: background var(--transition), box-shadow var(--transition), transform 0.08s;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  touch-action: none;
 }
 
 .key.white {
@@ -624,4 +629,8 @@ footer {
 
   /* Rebind panel should be scrollable and comfortable on mobile */
   .rebind-panel-inner { max-height: calc(100vh - 180px); overflow: auto; }
+
+  /* Reduce heavy shadows on mobile for better FPS */
+  .key.white { box-shadow: none; border: 1px solid rgba(0,0,0,0.06); }
+  .key.black { box-shadow: none; }
 }

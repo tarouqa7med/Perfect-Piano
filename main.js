@@ -8,13 +8,19 @@ let analyser;
 
 function initAudio() {
   if (audioCtx) return;
-  audioCtx = new AudioCtx();
+  try {
+    audioCtx = new AudioCtx({ latencyHint: 'interactive' });
+  } catch (e) {
+    // fallback for older browsers
+    audioCtx = new AudioCtx();
+  }
 
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.8;
 
   analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 1024;
+  // smaller fft reduces CPU while keeping visual detail
+  analyser.fftSize = 512;
 
   dryGain = audioCtx.createGain();
   dryGain.gain.value = 0.7;
@@ -35,7 +41,8 @@ function initAudio() {
 function createReverb() {
   const conv = audioCtx.createConvolver();
   const sampleRate = audioCtx.sampleRate;
-  const length = sampleRate * 2.5;
+  // shorter impulse to reduce CPU/memory on mobile
+  const length = Math.floor(sampleRate * 1.2);
   const impulse = audioCtx.createBuffer(2, length, sampleRate);
   for (let c = 0; c < 2; c++) {
     const ch = impulse.getChannelData(c);
@@ -473,15 +480,21 @@ function drawViz() {
   vizAF = requestAnimationFrame(drawViz);
   if (!analyser) { return; }
 
+  // Throttle visualizer when idle to save CPU on mobile
+  if (activeNotes.size === 0) {
+    if ((drawViz._idleSkip = (drawViz._idleSkip || 0) + 1) < 8) return;
+  }
+  drawViz._idleSkip = 0;
+
   const W = canvas.offsetWidth, H = canvas.offsetHeight;
   ctx2d.clearRect(0, 0, W, H);
 
-  const data = new Uint8Array(analyser.frequencyBinCount);
+  const data = new Uint8Array(analyser.fftSize);
   analyser.getByteTimeDomainData(data);
 
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
   ctx2d.strokeStyle = isDark ? '#c8a96e' : '#8b6914';
-  ctx2d.lineWidth = 1.5;
+  ctx2d.lineWidth = 1.2;
   ctx2d.beginPath();
 
   const slice = W / data.length;
