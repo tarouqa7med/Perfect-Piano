@@ -750,7 +750,6 @@ const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
 const DEFAULT_LAYOUT_ID = 'default-layout-v1';
 const EXTERNAL_BACKUP_PATH = '../json/my-backups.json';
 let activeBackupId = '';
-let externalBackupFileHandle = null;
 
 function getDefaultLayoutState() {
   return {
@@ -789,6 +788,21 @@ function getCurrentLayoutState() {
   };
 }
 
+function getAlphabeticalBindings() {
+  const startMidi = (startOctave + 1) * 12;
+  const endMidi = startMidi + totalKeys - 1;
+  const alphaKeys = [...'abcdefghijklmnopqrstuvwxyz'.split(''), ...'0123456789'.split('')];
+  const bindings = {};
+  let alphaIndex = 0;
+
+  for (let midi = startMidi; midi <= endMidi; midi++) {
+    let key = alphaKeys[alphaIndex++] || KEY_POOL[alphaIndex - 1] || 'shift';
+    bindings[midi] = normalizeKeyName(key);
+  }
+
+  return bindings;
+}
+
 function loadBackups() {
   try {
     const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
@@ -804,7 +818,7 @@ function persistBackups(backups) {
   const sorted = Array.from(backups);
   sorted.sort((a, b) => b.createdAt - a.createdAt);
   localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
-  writeBackupsFileIfHandle(sorted);
+  saveBackupsToJsonFile(sorted);
 }
 
 async function loadBackupsFromExternalJson() {
@@ -819,36 +833,15 @@ async function loadBackupsFromExternalJson() {
   }
 }
 
-async function writeBackupsFileIfHandle(backups) {
-  if (!externalBackupFileHandle) return;
+async function saveBackupsToJsonFile(backups) {
   try {
-    const writable = await externalBackupFileHandle.createWritable();
-    await writable.write(JSON.stringify(backups, null, 2));
-    await writable.close();
-  } catch (err) {
-    console.warn('Unable to update external JSON file automatically', err);
-    externalBackupFileHandle = null;
-  }
-}
-
-async function requestJsonFileHandle() {
-  if (externalBackupFileHandle || !('showOpenFilePicker' in window)) return;
-  try {
-    const [handle] = await window.showOpenFilePicker({
-      types: [{
-        description: 'Piano backup JSON',
-        accept: { 'application/json': ['.json'] },
-      }],
-      excludeAcceptAllOption: false,
-      multiple: false,
+    await fetch(EXTERNAL_BACKUP_PATH, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(backups, null, 2),
     });
-    if (!handle) return;
-    externalBackupFileHandle = handle;
-    const backups = loadBackups();
-    await writeBackupsFileIfHandle(backups);
-    document.getElementById('rebindHint').textContent = '✓ تم تفعيل الحفظ التلقائي للباكابات';
   } catch (err) {
-    if (err.name !== 'AbortError') console.warn('JSON file handle request failed', err);
+    console.warn('Unable to persist backups to external JSON path', err);
   }
 }
 
@@ -859,8 +852,6 @@ async function initializeBackups() {
     document.getElementById('rebindHint').textContent = '✓ تم تحميل الباكابات من ../json/my-backups.json';
   }
   populateLayoutSelect();
-  document.addEventListener('pointerdown', requestJsonFileHandle, { once: true });
-  document.addEventListener('keydown', requestJsonFileHandle, { once: true });
 }
 
 function ensureDefaultLayout(backups) {
@@ -975,6 +966,40 @@ document.getElementById('saveLayoutBtn').addEventListener('click', () => {
   populateLayoutSelect();
   document.getElementById('layoutSelect').value = activeBackupId;
   document.getElementById('rebindHint').textContent = '✓ تم حفظ ترتيب المفاتيح';
+});
+
+document.getElementById('addBackupBtn')?.addEventListener('click', () => {
+  const name = prompt('اكتب اسم الباكاب الجديد:');
+  if (!name) return;
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
+
+  const backups = loadBackups();
+  const duplicate = findBackupByName(backups, trimmedName);
+  if (duplicate) {
+    if (!confirmOverrideExistingLayout(trimmedName)) return;
+  }
+
+  const state = getCurrentLayoutState();
+  state.name = trimmedName;
+  state.rebinds = getAlphabeticalBindings();
+
+  if (duplicate) {
+    state.id = duplicate.id;
+    state.createdAt = duplicate.createdAt || Date.now();
+    const idx = backups.findIndex(b => b.id === duplicate.id);
+    if (idx !== -1) backups.splice(idx, 1, state);
+  } else {
+    backups.unshift(state);
+  }
+
+  const MAX = 20;
+  persistBackups(backups.slice(0, MAX));
+  activeBackupId = state.id;
+  applyLayoutState(state);
+  populateLayoutSelect();
+  document.getElementById('layoutSelect').value = activeBackupId;
+  document.getElementById('rebindHint').textContent = '✓ تم إنشاء باكاب جديد وحفظه في JSON';
 });
 
 // Delete from select
