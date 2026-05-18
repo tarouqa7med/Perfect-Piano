@@ -117,11 +117,13 @@
         <button class="icon-btn active" id="showLabelsBtn" data-tip="Show note names">🎵</button>
         <button class="icon-btn active" id="showKbdBtn" data-tip="Show keyboard shortcuts">⌨️</button>
         <button class="icon-btn" id="rebindBtn" data-tip="Remap keyboard keys">⚙️</button>
-        <button class="icon-btn" id="addBackupBtn" data-tip="Add new backup with alphabetical key order">➕</button>
-        <button class="icon-btn" id="saveLayoutBtn" data-tip="Save current layout (octave/keys/instrument/rebinds)">💾</button>
-        <button class="icon-btn" id="editLayoutBtn" data-tip="Edit selected saved layout">✏️</button>
+        <button class="icon-btn" id="createBackupBtn" data-tip="Create new backup with name + alphabetical key order">➕</button>
+        <button class="icon-btn" id="editBackupBtn" data-tip="Edit selected backup (wait for Save to write to JSON)">✏️</button>
+        <button class="icon-btn" id="saveBackupBtn" data-tip="Save current edited backup order to JSON">💾</button>
+        <button class="icon-btn" id="changeBackupNameBtn" data-tip="Change selected backup name (only updates JSON on Save Name step)">🔤</button>
         <button class="icon-btn" id="deleteLayoutBtn" data-tip="Delete currently selected saved layout">🗑️</button>
         <button class="icon-btn" id="deleteAllLayoutsBtn" data-tip="Delete ALL saved layouts">🧹</button>
+
         <select id="layoutSelect" class="layout-select" data-tip="Load saved layout"></select>
 
       </div>

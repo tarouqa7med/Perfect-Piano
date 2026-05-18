@@ -884,21 +884,54 @@ function applyLayoutState(state) {
   buildKeyboard();
 }
 
-// Save button
-document.getElementById('saveLayoutBtn').addEventListener('click', () => {
-  const name = prompt('اسم الباكاب (Layout name):');
+// ═══════════════════════════════════════════════════════════
+// Backup buttons (Create / Edit / Save / Change backup name)
+// ═══════════════════════════════════════════════════════════
+let editMode = false;
+let editingBackupId = '';
+let pendingBackupName = null;
+
+function requireSelectedBackupOrHint() {
+  const id = document.getElementById('layoutSelect').value;
+  if (!id) {
+    document.getElementById('rebindHint').textContent = '— اختر باكاب من القائمة أولاً';
+    return null;
+  }
+  return id;
+}
+
+function persistBackupById(id, maybeName = null) {
+  const backups = loadBackups();
+  const idx = backups.findIndex(b => b.id === id);
+  if (idx === -1) return false;
+
+  const state = getCurrentLayoutState();
+  state.id = id;
+  state.name = maybeName !== null ? maybeName : (backups[idx].name || 'Layout');
+  state.createdAt = backups[idx].createdAt || Date.now();
+  state.protected = backups[idx].protected || false;
+
+  backups[idx] = state;
+
+  const MAX = 20;
+  persistBackups(backups.slice(0, MAX));
+  return true;
+}
+
+// CREATE (Create new + alphabetical key order + write JSON immediately)
+document.getElementById('createBackupBtn').addEventListener('click', () => {
+  const name = prompt('اسم الباكاب الجديد:');
   if (!name) return;
   const trimmedName = name.trim();
   if (!trimmedName) return;
 
   const backups = loadBackups();
   const duplicate = findBackupByName(backups, trimmedName);
-  if (duplicate) {
-    if (!confirmOverrideExistingLayout(trimmedName)) return;
-  }
+  if (duplicate && !confirmOverrideExistingLayout(trimmedName)) return;
 
   const state = getCurrentLayoutState();
   state.name = trimmedName;
+  state.rebinds = getAlphabeticalBindings();
 
   if (duplicate) {
     state.id = duplicate.id;
@@ -909,58 +942,95 @@ document.getElementById('saveLayoutBtn').addEventListener('click', () => {
     backups.unshift(state);
   }
 
-  const MAX = 20;
-  persistBackups(backups.slice(0, MAX));
+  persistBackups(backups.slice(0, 20));
 
   activeBackupId = state.id;
+  editMode = false;
+  editingBackupId = '';
+  pendingBackupName = null;
+
   populateLayoutSelect();
   document.getElementById('layoutSelect').value = activeBackupId;
-  document.getElementById('rebindHint').textContent = '✓ تم حفظ ترتيب المفاتيح';
+  document.getElementById('rebindHint').textContent = '✓ تم إنشاء باكاب جديد وحفظه (ترتيب أبجدي)';
 });
 
-// Delete from select
-document.getElementById('editLayoutBtn').addEventListener('click', () => {
-  const sel = document.getElementById('layoutSelect');
-  const id = sel.value;
-  if (!id) {
-    document.getElementById('rebindHint').textContent = '— اختر باكاب من القائمة للتعديل';
+// EDIT (enter edit mode; do not write to JSON until Save)
+document.getElementById('editBackupBtn').addEventListener('click', () => {
+  const id = requireSelectedBackupOrHint();
+  if (!id) return;
+
+  editMode = true;
+  editingBackupId = id;
+  pendingBackupName = null;
+
+  document.getElementById('rebindHint').textContent = '✏️ وضع Edit: اعمل تغييرات على ترتيب الأزرار ثم ادوس Save';
+});
+
+// SAVE (writes current ordering to JSON immediately)
+document.getElementById('saveBackupBtn').addEventListener('click', () => {
+  const id = editMode ? editingBackupId : requireSelectedBackupOrHint();
+  if (!id) return;
+
+  if (!editMode) {
+    const existing = loadBackups().find(b => b.id === id);
+    const name = prompt('اسم الباكاب (Layout name):', existing?.name || '');
+    if (!name) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    const backups = loadBackups();
+    const duplicate = findBackupByName(backups, trimmedName, id);
+    if (duplicate && !confirmOverrideExistingLayout(trimmedName)) return;
+
+    pendingBackupName = trimmedName;
+  } else {
+    // editMode: Save فقط يكتب ترتيب الأزرار + الاسم الحالي
+    const backups = loadBackups();
+    const existing = backups.find(b => b.id === id);
+    pendingBackupName = pendingBackupName !== null ? pendingBackupName : (existing?.name || 'Layout');
+  }
+
+  const ok = persistBackupById(id, pendingBackupName);
+  if (!ok) return;
+
+  activeBackupId = id;
+  populateLayoutSelect();
+  document.getElementById('layoutSelect').value = id;
+
+  editMode = false;
+  editingBackupId = '';
+  pendingBackupName = null;
+
+  document.getElementById('rebindHint').textContent = '✓ تم حفظ ترتيب الأزرار داخل JSON';
+});
+
+// CHANGE backup name (only name; actual persistence happens on Save)
+document.getElementById('changeBackupNameBtn').addEventListener('click', () => {
+  const id = requireSelectedBackupOrHint();
+  if (!id) return;
+
+  if (!editMode || editingBackupId !== id) {
+    document.getElementById('rebindHint').textContent = '— ادخل وضع Edit أولاً ثم غيّر الاسم، وبعدها Save';
     return;
   }
 
+  const currentName = loadBackups().find(b => b.id === id)?.name || '';
+  const next = prompt('اكتب الاسم الجديد للباكاب:', currentName);
+  if (!next) return;
+  const trimmed = next.trim();
+  if (!trimmed) return;
+
+  // validate uniqueness (pending)
   const backups = loadBackups();
-  let idx = backups.findIndex(b => b.id === id);
-  if (idx === -1) return;
+  const duplicate = findBackupByName(backups, trimmed, id);
+  if (duplicate && !confirmOverrideExistingLayout(trimmed)) return;
 
-  const currentName = backups[idx].name || 'Layout';
-  const name = prompt('اسم الباكاب الجديد:', currentName);
-  if (!name) return;
-  const trimmedName = name.trim();
-  if (!trimmedName) return;
-
-  const duplicate = findBackupByName(backups, trimmedName, id);
-  if (duplicate) {
-    if (!confirmOverrideExistingLayout(trimmedName)) return;
-    const dupIdx = backups.findIndex(b => b.id === duplicate.id);
-    if (dupIdx !== -1) backups.splice(dupIdx, 1);
-    if (dupIdx < idx) {
-      // Adjust idx if we removed an earlier item in the array
-      idx -= 1;
-    }
-  }
-
-  const state = getCurrentLayoutState();
-  state.id = id;
-  state.name = trimmedName;
-  state.protected = backups[idx] ? backups[idx].protected : false;
-  state.createdAt = backups[idx] ? backups[idx].createdAt || Date.now() : Date.now();
-
-  backups[idx] = state;
-  persistBackups(backups);
-  activeBackupId = id;
-  populateLayoutSelect();
-  sel.value = id;
-  document.getElementById('rebindHint').textContent = '✓ تم تحديث الباكاب المحدد';
+  pendingBackupName = trimmed;
+  document.getElementById('rebindHint').textContent = `تم تجهيز تغيير الاسم إلى "${trimmed}". ادوس Save لحفظ الترتيب داخل JSON`;
 });
+
+
+
 
 document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
   const sel = document.getElementById('layoutSelect');
