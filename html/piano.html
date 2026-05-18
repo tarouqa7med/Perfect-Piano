@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Piano Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="main.css">
+    <link rel="stylesheet" href="../css/main.css">
   </head>
 <body>
 
@@ -69,8 +69,8 @@
       <div class="ctrl-label">Volume</div>
       <div class="range-wrap">
         <span class="vol-icon">🔈</span>
-        <input type="range" id="volRange" min="0" max="100" value="80">
-        <span class="range-val" id="volVal">80</span>
+        <input type="range" id="volRange" min="0" max="100" value="100">
+        <span class="range-val" id="volVal">100</span>
       </div>
     </div>
 
@@ -97,12 +97,16 @@
         <button class="icon-btn" id="editLayoutBtn" data-tip="Edit selected saved layout">✏️</button>
         <button class="icon-btn" id="deleteLayoutBtn" data-tip="Delete currently selected saved layout">🗑️</button>
         <button class="icon-btn" id="deleteAllLayoutsBtn" data-tip="Delete ALL saved layouts">🧹</button>
+        <button class="icon-btn" id="exportJsonBtn" data-tip="Export current backups to my-backups.json">⬇️</button>
+        <button class="icon-btn" id="importJsonBtn" data-tip="Import backups from a JSON file">⬆️</button>
+        <button class="icon-btn" id="reloadJsonBtn" data-tip="Reload backups from json/my-backups.json">🔄</button>
         <select id="layoutSelect" class="layout-select" data-tip="Load saved layout"></select>
 
       </div>
     </div>
 
 
+    <input type="file" id="jsonImportInput" accept="application/json" hidden>
   </div>
 
   <!-- ══ PIANO STAGE ══ -->

@@ -16,7 +16,7 @@ function initAudio() {
   }
 
   masterGain = audioCtx.createGain();
-  masterGain.gain.value = 1.0;
+  masterGain.gain.value = 0.8;
 
   analyser = audioCtx.createAnalyser();
   // smaller fft reduces CPU while keeping visual detail
@@ -58,7 +58,7 @@ function createReverb() {
 const activeNotes = new Map();
 let sustainActive = false;
 const sustainedNotes = new Set();
-let currentVolume = 1.0;
+let currentVolume = 0.8;
 let currentReverb = 0.3;
 let currentInstrument = 'piano';
 
@@ -748,9 +748,7 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
 const DEFAULT_LAYOUT_ID = 'default-layout-v1';
-const EXTERNAL_BACKUP_PATH = 'json/my-backups.json';
 let activeBackupId = '';
-let externalBackupFileHandle = null;
 
 function getDefaultLayoutState() {
   return {
@@ -804,80 +802,6 @@ function persistBackups(backups) {
   const sorted = Array.from(backups);
   sorted.sort((a, b) => b.createdAt - a.createdAt);
   localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
-  if (externalBackupFileHandle) {
-    writeBackupsFileIfHandle(sorted);
-  }
-}
-
-async function loadBackupsFromExternalJson() {
-  try {
-    const response = await fetch(EXTERNAL_BACKUP_PATH, { cache: 'reload' });
-    if (!response.ok) return null;
-    const parsed = await response.json();
-    if (!Array.isArray(parsed)) return null;
-    return ensureDefaultLayout(parsed);
-  } catch (e) {
-    return null;
-  }
-}
-
-function downloadJsonFile(content, filename = 'my-backups.json') {
-  const blob = new Blob([content], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-async function saveBackupsToJsonFile(backups) {
-  const fileContent = JSON.stringify(backups, null, 2);
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: 'my-backups.json',
-        types: [{
-          description: 'Piano backup JSON',
-          accept: { 'application/json': ['.json'] },
-        }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(fileContent);
-      await writable.close();
-      externalBackupFileHandle = handle;
-      document.getElementById('rebindHint').textContent = '✓ تم حفظ الباكابات في my-backups.json';
-      return;
-    } catch (err) {
-      if (err.name !== 'AbortError') console.warn('Save backups to JSON failed', err);
-    }
-  }
-
-  downloadJsonFile(fileContent, 'my-backups.json');
-  document.getElementById('rebindHint').textContent = '✓ تم تنزيل my-backups.json إلى جهازك';
-}
-
-async function writeBackupsFileIfHandle(backups) {
-  if (!externalBackupFileHandle) return;
-  try {
-    const writable = await externalBackupFileHandle.createWritable();
-    await writable.write(JSON.stringify(backups, null, 2));
-    await writable.close();
-  } catch (err) {
-    console.warn('Unable to update external JSON file automatically', err);
-    externalBackupFileHandle = null;
-  }
-}
-
-async function initializeBackups() {
-  const external = await loadBackupsFromExternalJson();
-  if (external) {
-    persistBackups(external);
-    document.getElementById('rebindHint').textContent = '✓ تم تحميل الباكابات من json/my-backups.json';
-  }
-  populateLayoutSelect();
 }
 
 function ensureDefaultLayout(backups) {
@@ -1078,7 +1002,7 @@ document.getElementById('layoutSelect').addEventListener('change', (e) => {
 });
 
 // Initialize backup select and ensure default layout exists.
-initializeBackups();
+populateLayoutSelect();
 
 window.addEventListener('beforeunload', autoSaveSelectedBackup);
 
@@ -1091,45 +1015,9 @@ document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => 
   document.getElementById('rebindHint').textContent = '✓ تم حذف كل الباكابات';
 });
 
-document.getElementById('exportJsonBtn')?.addEventListener('click', async () => {
-  await saveBackupsToJsonFile(loadBackups());
-});
-
-document.getElementById('importJsonBtn')?.addEventListener('click', () => {
-  document.getElementById('jsonImportInput')?.click();
-});
-
-document.getElementById('reloadJsonBtn')?.addEventListener('click', async () => {
-  const external = await loadBackupsFromExternalJson();
-  if (external) {
-    persistBackups(external);
-    populateLayoutSelect();
-    document.getElementById('rebindHint').textContent = '✓ تم إعادة تحميل الباكابات من json/my-backups.json';
-  } else {
-    document.getElementById('rebindHint').textContent = '✕ لم يتم العثور على json/my-backups.json';
-  }
-});
-
-document.getElementById('jsonImportInput')?.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    if (!Array.isArray(parsed)) throw new Error('Invalid backup JSON');
-    persistBackups(ensureDefaultLayout(parsed));
-    populateLayoutSelect();
-    document.getElementById('rebindHint').textContent = '✓ تم استيراد الباكابات من الملف';
-  } catch (err) {
-    alert('فشل تحميل ملف JSON: ' + err.message);
-    console.warn(err);
-  } finally {
-    e.target.value = '';
-  }
-});
 
 
-// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('resize', () => { resizeCanvas(); });
