@@ -1048,8 +1048,14 @@ document.getElementById('changeBackupNameBtn').addEventListener('click', () => {
     return;
   }
 
+  // لازم نقرأ ونحدّث ترتيب المفاتيح الحالية بناءً على “كل التغييرات” قبل Save
+  // (Octave/Keys/Instrument + rebinds)
+  // أي تعديل بعد اختيار الباكاب يجب ينعكس في النسخة عند ضغط Save.
+  // لذلك هنا قبل تغيير الاسم لا نعمل persist، لكن نضمن أن pendingBackupName سيُستخدم مع persistBackupById.
+
   const currentName = loadBackups().find(b => b.id === id)?.name || '';
   const next = prompt('اكتب الاسم الجديد للباكاب:', currentName);
+
   if (!next) return;
   const trimmed = next.trim();
   if (!trimmed) return;
