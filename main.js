@@ -811,6 +811,16 @@ function ensureDefaultLayout(backups) {
   return backups;
 }
 
+function findBackupByName(backups, name, excludeId = null) {
+  const normalized = String(name || '').trim().toLowerCase();
+  if (!normalized) return null;
+  return backups.find(b => b && b.name && b.id !== excludeId && b.name.trim().toLowerCase() === normalized) || null;
+}
+
+function confirmOverrideExistingLayout(existingName) {
+  return confirm(`هناك نسخة محفوظة بنفس الاسم "${existingName}". اضغط موافق لتحديثها أو إلغاء للرجوع.`);
+}
+
 function populateLayoutSelect() {
   const sel = document.getElementById('layoutSelect');
   const backups = loadBackups();
@@ -860,13 +870,32 @@ function applyLayoutState(state) {
 document.getElementById('saveLayoutBtn').addEventListener('click', () => {
   const name = prompt('اسم الباكاب (Layout name):');
   if (!name) return;
-
-  const state = getCurrentLayoutState();
-  state.name = name;
-  state.protected = false;
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
 
   const backups = loadBackups();
-  backups.unshift(state);
+  const duplicate = findBackupByName(backups, trimmedName);
+  if (duplicate) {
+    if (!confirmOverrideExistingLayout(trimmedName)) return;
+    if (duplicate.protected) {
+      alert('لا يمكن استبدال النسخة الافتراضية المحمية هنا. اختر اسمًا آخر.');
+      return;
+    }
+  }
+
+  const state = getCurrentLayoutState();
+  state.name = trimmedName;
+  state.protected = false;
+
+  if (duplicate) {
+    state.id = duplicate.id;
+    state.createdAt = duplicate.createdAt || Date.now();
+    const idx = backups.findIndex(b => b.id === duplicate.id);
+    if (idx !== -1) backups.splice(idx, 1, state);
+  } else {
+    backups.unshift(state);
+  }
+
   const MAX = 20;
   persistBackups(backups.slice(0, MAX));
 
@@ -884,18 +913,35 @@ document.getElementById('editLayoutBtn').addEventListener('click', () => {
   }
 
   const backups = loadBackups();
-  const idx = backups.findIndex(b => b.id === id);
+  let idx = backups.findIndex(b => b.id === id);
   if (idx === -1) return;
 
   const currentName = backups[idx].name || 'Layout';
   const name = prompt('اسم الباكاب الجديد:', currentName);
   if (!name) return;
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
+
+  const duplicate = findBackupByName(backups, trimmedName, id);
+  if (duplicate) {
+    if (!confirmOverrideExistingLayout(trimmedName)) return;
+    if (duplicate.protected) {
+      alert('لا يمكن استبدال النسخة الافتراضية المحمية هنا. اختر اسمًا آخر.');
+      return;
+    }
+    const dupIdx = backups.findIndex(b => b.id === duplicate.id);
+    if (dupIdx !== -1) backups.splice(dupIdx, 1);
+    if (dupIdx < idx) {
+      // Adjust idx if we removed an earlier item in the array
+      idx -= 1;
+    }
+  }
 
   const state = getCurrentLayoutState();
   state.id = id;
-  state.name = name;
-  state.protected = backups[idx].protected;
-  state.createdAt = backups[idx].createdAt || Date.now();
+  state.name = trimmedName;
+  state.protected = backups[idx] ? backups[idx].protected : false;
+  state.createdAt = backups[idx] ? backups[idx].createdAt || Date.now() : Date.now();
 
   backups[idx] = state;
   persistBackups(backups);
