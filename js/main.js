@@ -746,23 +746,42 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 // LAYOUT BACKUP (save/load octave+keys+instrument+rebinds)
 // ═══════════════════════════════════════════════════════════
-// Storage: نخلي كل شيء داخل localStorage فقط (بدون محاولة كتابة ملف JSON من المتصفح)
+// Storage + immutable default backup
+// ═══════════════════════════════════════════════════════════
 const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
-const DEFAULT_LAYOUT_ID = 'default-layout-v1';
+const DEFAULT_LAYOUT_ID = (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ && window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id) ? window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id : 'default-layout-immutable-v1';
 let activeBackupId = '';
 
-
-function getDefaultLayoutState() {
-  return {
+function getImmutableDefaultBackup() {
+  return (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ || {
     id: DEFAULT_LAYOUT_ID,
     name: 'Default',
-    octave: 3,
-    keysCount: 49,
+    octave: 4,
+    keysCount: 25,
     instrument: 'piano',
     rebinds: {},
     createdAt: 0,
+    protected: true,
+  });
+}
+
+
+
+function getDefaultLayoutState() {
+  // Deprecated by immutable default; kept for backward compatibility.
+  const d = getImmutableDefaultBackup();
+  return {
+    id: d.id,
+    name: d.name,
+    octave: d.octave,
+    keysCount: d.keysCount,
+    instrument: d.instrument,
+    rebinds: d.rebinds || {},
+    createdAt: d.createdAt || 0,
+    protected: true,
   };
 }
+
 
 function getCurrentLayoutState() {
   // Determine current keys shown / octave from UI and state.
@@ -951,6 +970,54 @@ function saveDraftIfEditModeActive() {
   // draft: only update JSON name? requirement says save only on Save button
 }
 
+
+// CREATE (Create new + alphabetical key order + write JSON immediately)
+document.getElementById('copyBackupBtn')?.addEventListener('click', () => {
+  const srcId = document.getElementById('layoutSelect').value;
+  if (!srcId) {
+    document.getElementById('rebindHint').textContent = '— اختر باكاب أولاً للنسخ';
+    return;
+  }
+
+  const src = loadBackups().find(b => b.id === srcId);
+  if (!src) {
+    document.getElementById('rebindHint').textContent = '— لم يتم العثور على الباكاب المختار';
+    return;
+  }
+
+  const newName = prompt('اسم النسخة الجديدة (Copy):', src.name ? `${src.name} Copy` : 'New Layout');
+  if (!newName) return;
+  const trimmedName = newName.trim();
+  if (!trimmedName) return;
+
+  const backups = loadBackups();
+  const duplicate = findBackupByName(backups, trimmedName);
+  if (duplicate && !confirmOverrideExistingLayout(trimmedName)) return;
+
+  const next = { ...src };
+  next.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  next.name = trimmedName;
+  next.createdAt = Date.now();
+  next.protected = false;
+
+  if (duplicate) {
+    const idx = backups.findIndex(b => b.id === duplicate.id);
+    if (idx !== -1) backups.splice(idx, 1, next);
+  } else {
+    backups.unshift(next);
+  }
+
+  persistBackups(backups.slice(0, 20));
+
+  activeBackupId = next.id;
+  editMode = false;
+  editingBackupId = '';
+  pendingBackupName = null;
+
+  populateLayoutSelect();
+  document.getElementById('layoutSelect').value = activeBackupId;
+  document.getElementById('rebindHint').textContent = `✓ تم نسخ الباكاب وأضيف باسم "${trimmedName}"`;
+});
 
 // CREATE (Create new + alphabetical key order + write JSON immediately)
 document.getElementById('createBackupBtn').addEventListener('click', () => {
