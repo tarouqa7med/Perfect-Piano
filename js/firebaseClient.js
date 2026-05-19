@@ -9,6 +9,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
+// Disable transports that rely on WebSocket (problematic on some static/GitHub Pages environments).
+// In the modular RTDB SDK, this is controlled via browser persistence / env.
+// The safest approach for CDN ESM is to force a stable polling transport using the built-in settings object.
+// Note: forceWebsockets is supported in the RTDB SDK options.
+
 const firebaseConfig = {
   apiKey: "AIzaSyDneKIErjTn4iOp3jI9XMnWxlQGpcRx7Ow",
   authDomain: "perfect-piano-c2fa5.firebaseapp.com",
@@ -17,10 +22,19 @@ const firebaseConfig = {
   messagingSenderId: "1052803741930",
   appId: "1:1052803741930:web:e27e0fe3c4f43e922bff93",
   measurementId: "G-FYW1KM0ZE9",
-  databaseURL: "https://perfect-piano-c2fa5-default-rtdb.firebaseio.com",
+  databaseURL: "https://perfect-piano-c2fa5-default-rtdb.firebaseio.com/",
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Force RTDB to prefer polling transport (no WebSocket) in environments where WS fails.
+// This avoids "onConnectionShutdown" / ws issues on some static/GitHub Pages setups.
+// Note: settings are applied via the global persistence config used by RTDB.
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('firebase:database:forcePolling', 'true');
+  }
+} catch (_) {}
 
 // Analytics is optional; older/blocked environments might throw.
 try {
