@@ -264,10 +264,62 @@ function displayKeyName(key) {
   return displayMap[normalized] || normalized.toUpperCase();
 }
 
+const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
+const LAST_SELECTED_LAYOUT_KEY = 'piano_selected_layout_v1';
+const DEFAULT_LAYOUT_ID = (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ && window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id)
+  ? window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id
+  : 'default-layout-immutable-v1';
+
+function getSavedLayoutId() {
+  return localStorage.getItem(LAST_SELECTED_LAYOUT_KEY) || DEFAULT_LAYOUT_ID;
+}
+
+function setSavedLayoutId(id) {
+  localStorage.setItem(LAST_SELECTED_LAYOUT_KEY, id);
+}
+
+function getDefaultPositionBindings(startMidi, keyCount) {
+  const WHITE_KEY_POOL = ['a','s','d','f','g','h','j','k','l',';','\'', 'enter','pgdn'];
+  const BLACK_KEY_POOL = ['w','e','t','y','u','o','p',']','\\','pgup'];
+  const binds = {};
+  let whiteIdx = 0;
+  let blackIdx = 0;
+  for (let position = 0; position < keyCount; position++) {
+    const midi = startMidi + position;
+    const isBlack = [1,3,6,8,10].includes(midi % 12);
+    binds[position] = normalizeKeyName(
+      isBlack ? BLACK_KEY_POOL[blackIdx++ % BLACK_KEY_POOL.length] : WHITE_KEY_POOL[whiteIdx++ % WHITE_KEY_POOL.length]
+    );
+  }
+  return binds;
+}
+
+function normalizeRebinds(rebinds, startMidi, keyCount) {
+  if (!rebinds || typeof rebinds !== 'object') return {};
+  const normalized = {};
+  for (const rawKey in rebinds) {
+    const value = normalizeKeyName(rebinds[rawKey]);
+    const numeric = Number(rawKey);
+    if (!Number.isNaN(numeric)) {
+      const asPosition = numeric;
+      const asMidi = numeric;
+      if (asPosition >= 0 && asPosition < keyCount) {
+        normalized[asPosition] = value;
+        continue;
+      }
+      const posFromMidi = asMidi - startMidi;
+      if (posFromMidi >= 0 && posFromMidi < keyCount) {
+        normalized[posFromMidi] = value;
+      }
+    }
+  }
+  return normalized;
+}
+
 // Per-midi maps — fully independent, each piano key has its own binding
 let midiToKey = {};   // midiNote -> key char
 let keyToMidi = {};   // key char  -> midiNote
-// Custom bindings survive octave/key-count changes: midiNote -> key char
+// Custom bindings survive octave/key-count changes: position -> key char
 let customBindings = {};
 
 // ═══════════════════════════════════════════════════════════
@@ -328,31 +380,14 @@ function buildKeyboard() {
   // Build per-midi key maps
   midiToKey = {};
   keyToMidi = {};
+  const defaultBindings = getDefaultPositionBindings(startMidi, totalKeys);
 
-  // Auto-map every visible midi note to a physical key following a standard keyboard layout.
-  // - White notes get: A S D F G H J K L ; ' ENTER PGDN
-  // - Black notes get: W E T Y U O P ] \\ PGUP
-  // Starting point is the first white/black note that appears inside this visible range.
-  const WHITE_KEY_POOL = ['a','s','d','f','g','h','j','k','l',';','\'', 'enter','pgdn'];
-  const BLACK_KEY_POOL = ['w','e','t','y','u','o','p',']','\\','pgup'];
-
-  // semitone mapping within an octave: 1,3,6,8,10 => black; others => white
-  const isBlackSemitone = (s) => [1,3,6,8,10].includes(s);
-
-  // counters for default mapping pool
-  let whiteIdxMap = 0;
-  let blackIdxMap = 0;
-
-  for (let m = startMidi; m <= endMidi; m++) {
-    const semitone = m % 12;
-    const defaultKey = isBlackSemitone(semitone)
-      ? BLACK_KEY_POOL[blackIdxMap++ % BLACK_KEY_POOL.length]
-      : WHITE_KEY_POOL[whiteIdxMap++ % WHITE_KEY_POOL.length];
-
-    const boundKey = normalizeKeyName(customBindings[m] !== undefined ? customBindings[m] : defaultKey);
-    midiToKey[m] = boundKey;
+  for (let position = 0; position < totalKeys; position++) {
+    const midi = startMidi + position;
+    const boundKey = normalizeKeyName(customBindings[position] !== undefined ? customBindings[position] : defaultBindings[position]);
+    midiToKey[midi] = boundKey;
+    if (boundKey) keyToMidi[boundKey] = midi;
   }
-
 
   // Build reverse map (last write wins if duplicate)
   Object.entries(midiToKey).forEach(([midi, key]) => {
@@ -577,16 +612,16 @@ function buildRebindList() {
   list.innerHTML = '';
 
   const startMidi = (startOctave + 1) * 12;
-  const endMidi = startMidi + totalKeys - 1;
 
-  for (let m = startMidi; m <= endMidi; m++) {
-    const keyChar = midiToKey[m];
-    if (!keyChar) continue; // only show mapped keys
+  for (let position = 0; position < totalKeys; position++) {
+    const midi = startMidi + position;
+    const keyChar = midiToKey[midi];
+    if (!keyChar) continue;
 
-    const { full } = getNoteName(m);
+    const { full } = getNoteName(midi);
     const item = document.createElement('div');
     item.className = 'rebind-item';
-    item.dataset.midi = m;
+    item.dataset.position = position;
 
     const noteSpan = document.createElement('div');
     noteSpan.className = 'rebind-note';
@@ -595,21 +630,22 @@ function buildRebindList() {
     const kbdBadge = document.createElement('div');
     kbdBadge.className = 'rebind-kbd-badge';
     kbdBadge.textContent = displayKeyName(keyChar);
-    kbdBadge.id = `rebind-badge-${m}`;
+    kbdBadge.id = `rebind-badge-${position}`;
 
     item.appendChild(noteSpan);
     item.appendChild(kbdBadge);
-    item.addEventListener('click', () => selectRebind(m, item));
+    item.addEventListener('click', () => selectRebind(position, item));
     list.appendChild(item);
   }
 }
 
-function selectRebind(midiNote, itemEl) {
+function selectRebind(position, itemEl) {
   document.querySelectorAll('.rebind-item').forEach(el => el.classList.remove('selected'));
-  rebindTarget = midiNote;
+  rebindTarget = position;
   itemEl.classList.add('selected');
+  const midi = (startOctave + 1) * 12 + position;
   document.getElementById('rebindHint').textContent =
-    `اضغط أي زرار كيبورد لتعيينه لـ ${getNoteName(midiNote).full}`;
+    `اضغط أي زرار كيبورد لتعيينه لـ ${getNoteName(midi).full}`;
 }
 
 function assignRebind(key) {
@@ -620,38 +656,37 @@ function assignRebind(key) {
     return;
   }
 
-  // If this key already maps to another note, clear that binding
+  const startMidi = (startOctave + 1) * 12;
+  const targetMidi = startMidi + rebindTarget;
+
   const oldMidi = keyToMidi[normalizedKey];
-  if (oldMidi !== undefined && oldMidi !== rebindTarget) {
+  if (oldMidi !== undefined && oldMidi !== targetMidi) {
+    const oldPosition = oldMidi - startMidi;
     delete midiToKey[oldMidi];
-    delete customBindings[oldMidi];
-    const badge = document.getElementById(`rebind-badge-${oldMidi}`);
-    if (badge) badge.textContent = '—';
-    const el = keyElements[oldMidi];
-    if (el) el.querySelector('.key-kbd').textContent = '';
+    delete customBindings[oldPosition];
+    const oldBadge = document.getElementById(`rebind-badge-${oldPosition}`);
+    if (oldBadge) oldBadge.textContent = '—';
+    const oldEl = document.querySelector(`[data-midi='${oldMidi}']`);
+    if (oldEl) oldEl.querySelector('.key-kbd').textContent = '';
   }
 
-  // Remove old key for this midi note
-  const oldKey = midiToKey[rebindTarget];
+  const oldKey = midiToKey[targetMidi];
   if (oldKey) delete keyToMidi[oldKey];
 
-  // Assign
-  midiToKey[rebindTarget] = normalizedKey;
-  keyToMidi[normalizedKey] = rebindTarget;
-  customBindings[rebindTarget] = normalizedKey; // persist across rebuilds
+  midiToKey[targetMidi] = normalizedKey;
+  keyToMidi[normalizedKey] = targetMidi;
+  customBindings[rebindTarget] = normalizedKey;
 
   const displayName = displayKeyName(normalizedKey);
-
-  // Update rebind badge
   const badge = document.getElementById(`rebind-badge-${rebindTarget}`);
   if (badge) badge.textContent = displayName;
-
-  // Update key label on piano
-  const el = keyElements[rebindTarget];
+  const el = document.querySelector(`[data-midi='${targetMidi}']`);
   if (el && showKbd) el.querySelector('.key-kbd').textContent = displayName;
 
+  saveActiveBackupState();
+
   document.getElementById('rebindHint').textContent =
-    `✓ تم تعيين "${displayName}" → ${getNoteName(rebindTarget).full} · اختر مفتاحاً آخر للمتابعة`;
+    `✓ تم تعيين "${displayName}" → ${getNoteName(targetMidi).full}`;
 
   document.querySelectorAll('.rebind-item').forEach(el => el.classList.remove('selected'));
   rebindTarget = null;
@@ -664,6 +699,7 @@ function changeOctave(dir) {
   startOctave = Math.max(0, Math.min(6, startOctave + dir));
   document.getElementById('octaveVal').textContent = startOctave;
   buildKeyboard();
+  saveActiveBackupState();
 }
 
 document.getElementById('octDownBtn').addEventListener('click', () => changeOctave(-1));
@@ -678,6 +714,7 @@ document.getElementById('instrumentCtrl').addEventListener('click', e => {
   currentInstrument = btn.dataset.inst;
   // Stop all notes on instrument change
   [...heldKeys].forEach(m => triggerNote(m, false));
+  saveActiveBackupState();
 });
 
 // Keys count
@@ -688,6 +725,7 @@ document.getElementById('keysCtrl').addEventListener('click', e => {
   btn.classList.add('active');
   totalKeys = parseInt(btn.dataset.keys);
   buildKeyboard();
+  saveActiveBackupState();
 });
 
 // Volume
@@ -751,9 +789,6 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 // Firebase-backed layout backups
 // ═══════════════════════════════════════════════════════════
-const DEFAULT_LAYOUT_ID = (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ && window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id)
-  ? window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id
-  : 'default-layout-immutable-v1';
 let activeBackupId = '';
 
 function getImmutableDefaultBackup() {
@@ -795,7 +830,7 @@ function getCurrentLayoutState() {
   const selectedInstBtn = document.querySelector('#instrumentCtrl button.active');
   const instrument = selectedInstBtn ? selectedInstBtn.dataset.inst : currentInstrument;
 
-  // Rebinds (customBindings is midiNote -> key char)
+  // Rebinds (customBindings is position -> key char)
   // Persist all current custom bindings so backup restores the exact key order.
   const rebinds = { ...customBindings };
 
@@ -856,8 +891,8 @@ function confirmOverrideExistingLayout(existingName) {
 function populateLayoutSelect() {
   const sel = document.getElementById('layoutSelect');
   const backups = loadBackups();
+  const savedId = getSavedLayoutId();
 
-  const current = sel.value;
   sel.innerHTML = '';
 
   const placeholder = document.createElement('option');
@@ -874,30 +909,27 @@ function populateLayoutSelect() {
     sel.appendChild(opt);
   });
 
-  sel.value = backups.some(b => b.id === current) ? current : '';
+  const selected = backups.some(b => b.id === savedId) ? savedId : DEFAULT_LAYOUT_ID;
+  sel.value = selected;
+  activeBackupId = selected;
+  setSavedLayoutId(selected);
+  updateBackupButtons();
 }
 
 function getAlphabeticalBindings() {
-  // رجّع rebinds حسب “الترتيب الأبجدي” للمفاتيح الفيزيائية
-  // (نفس فكرة auto-map: white notes تطابق حروف من A..Z بالتتابع، و black notes مع مجموعة ثانية)
   const startMidi = (startOctave + 1) * 12;
-  const endMidi = startMidi + totalKeys - 1;
-
   const WHITE_KEY_POOL = ['a','s','d','f','g','h','j','k','l',';','\'', 'enter','pgdn'];
   const BLACK_KEY_POOL = ['w','e','t','y','u','o','p',']','\\','pgup'];
-
-  const isBlackSemitone = (s) => [1,3,6,8,10].includes(s);
-
   let whiteIdxMap = 0;
   let blackIdxMap = 0;
-
   const binds = {};
-  for (let m = startMidi; m <= endMidi; m++) {
-    const semitone = m % 12;
-    const key = isBlackSemitone(semitone)
+  for (let position = 0; position < totalKeys; position++) {
+    const midi = startMidi + position;
+    const isBlack = [1,3,6,8,10].includes(midi % 12);
+    const key = isBlack
       ? BLACK_KEY_POOL[blackIdxMap++ % BLACK_KEY_POOL.length]
       : WHITE_KEY_POOL[whiteIdxMap++ % WHITE_KEY_POOL.length];
-    binds[m] = normalizeKeyName(key);
+    binds[position] = normalizeKeyName(key);
   }
   return binds;
 }
@@ -916,10 +948,10 @@ function applyLayoutState(state) {
     btn.classList.toggle('active', btn.dataset.inst === currentInstrument);
   });
 
-  // Important: reset customBindings BEFORE buildKeyboard so new mapping uses them.
-  customBindings = state.rebinds ? { ...state.rebinds } : {};
+  // Normalize position-based bindings from stored state.
+  const startMidi = (startOctave + 1) * 12;
+  customBindings = normalizeRebinds(state.rebinds, startMidi, totalKeys);
 
-  // Rebuild keys (this will also buildRebindList and update labels)
   buildKeyboard();
 }
 
@@ -941,6 +973,7 @@ function requireSelectedBackupOrHint() {
 }
 
 function persistBackupById(id, maybeName = null) {
+  if (id === DEFAULT_LAYOUT_ID) return false;
   const backups = loadBackups();
   const idx = backups.findIndex(b => b.id === id);
   if (idx === -1) return false;
@@ -958,11 +991,38 @@ function persistBackupById(id, maybeName = null) {
   return true;
 }
 
-function saveDraftIfEditModeActive() {
-  if (!editMode || !editingBackupId) return;
-  // draft: only update JSON name? requirement says save only on Save button
+function saveActiveBackupState() {
+  if (!activeBackupId || activeBackupId === DEFAULT_LAYOUT_ID) return false;
+  const backups = loadBackups();
+  const idx = backups.findIndex(b => b.id === activeBackupId);
+  const state = getCurrentLayoutState();
+  state.id = activeBackupId;
+  state.name = idx !== -1 ? (backups[idx].name || state.name) : state.name;
+  state.protected = idx !== -1 ? !!backups[idx].protected : false;
+  state.createdAt = idx !== -1 ? backups[idx].createdAt || Date.now() : Date.now();
+
+  if (idx !== -1) {
+    backups[idx] = state;
+  } else {
+    backups.unshift(state);
+  }
+  persistBackups(backups.slice(0, 20));
+  return true;
 }
 
+function updateBackupButtons() {
+  const deleteBtn = document.getElementById('deleteLayoutBtn');
+  const saveBtn = document.getElementById('saveBackupBtn');
+  const editBtn = document.getElementById('editBackupBtn');
+  const renameBtn = document.getElementById('changeBackupNameBtn');
+  const selectedId = activeBackupId || document.getElementById('layoutSelect').value;
+  const isDefault = !selectedId || selectedId === DEFAULT_LAYOUT_ID;
+
+  if (deleteBtn) deleteBtn.disabled = isDefault;
+  if (saveBtn) saveBtn.disabled = isDefault;
+  if (editBtn) editBtn.disabled = isDefault;
+  if (renameBtn) renameBtn.disabled = isDefault;
+}
 
 // CREATE (Create new + alphabetical key order + write JSON immediately)
 document.getElementById('copyBackupBtn')?.addEventListener('click', () => {
@@ -1003,6 +1063,7 @@ document.getElementById('copyBackupBtn')?.addEventListener('click', () => {
   persistBackups(backups.slice(0, 20));
 
   activeBackupId = next.id;
+  setSavedLayoutId(activeBackupId);
   editMode = false;
   editingBackupId = '';
   pendingBackupName = null;
@@ -1039,6 +1100,7 @@ document.getElementById('createBackupBtn').addEventListener('click', () => {
   persistBackups(backups.slice(0, 20));
 
   activeBackupId = state.id;
+  setSavedLayoutId(activeBackupId);
   editMode = false;
   editingBackupId = '';
   pendingBackupName = null;
@@ -1088,6 +1150,7 @@ document.getElementById('saveBackupBtn').addEventListener('click', () => {
   if (!ok) return;
 
   activeBackupId = id;
+  setSavedLayoutId(id);
   populateLayoutSelect();
   document.getElementById('layoutSelect').value = id;
 
@@ -1098,35 +1161,36 @@ document.getElementById('saveBackupBtn').addEventListener('click', () => {
   document.getElementById('rebindHint').textContent = '✓ تم حفظ ترتيب الأزرار داخل JSON';
 });
 
-// CHANGE backup name (only name; actual persistence happens on Save)
+// CHANGE backup name
+// This updates the selected backup name immediately and saves the current layout state.
 document.getElementById('changeBackupNameBtn').addEventListener('click', () => {
   const id = requireSelectedBackupOrHint();
   if (!id) return;
 
-  if (!editMode || editingBackupId !== id) {
-    document.getElementById('rebindHint').textContent = '— ادخل وضع Edit أولاً ثم غيّر الاسم، وبعدها Save';
-    return;
-  }
-
-  // لازم نقرأ ونحدّث ترتيب المفاتيح الحالية بناءً على “كل التغييرات” قبل Save
-  // (Octave/Keys/Instrument + rebinds)
-  // أي تعديل بعد اختيار الباكاب يجب ينعكس في النسخة عند ضغط Save.
-  // لذلك هنا قبل تغيير الاسم لا نعمل persist، لكن نضمن أن pendingBackupName سيُستخدم مع persistBackupById.
-
-  const currentName = loadBackups().find(b => b.id === id)?.name || '';
+  const current = loadBackups().find(b => b.id === id);
+  const currentName = current?.name || '';
   const next = prompt('اكتب الاسم الجديد للباكاب:', currentName);
-
   if (!next) return;
   const trimmed = next.trim();
   if (!trimmed) return;
 
-  // validate uniqueness (pending)
   const backups = loadBackups();
   const duplicate = findBackupByName(backups, trimmed, id);
   if (duplicate && !confirmOverrideExistingLayout(trimmed)) return;
 
-  pendingBackupName = trimmed;
-  document.getElementById('rebindHint').textContent = `تم تجهيز تغيير الاسم إلى "${trimmed}". ادوس Save لحفظ الترتيب داخل JSON`;
+  const state = getCurrentLayoutState();
+  state.id = id;
+  state.name = trimmed;
+  state.protected = current?.protected || false;
+  state.createdAt = current?.createdAt || Date.now();
+
+  const idx = backups.findIndex(b => b.id === id);
+  if (idx !== -1) backups[idx] = state;
+  persistBackups(backups.slice(0, 20));
+
+  populateLayoutSelect();
+  document.getElementById('layoutSelect').value = id;
+  document.getElementById('rebindHint').textContent = `✓ تم تغيير اسم الباكاب إلى "${trimmed}"`;
 });
 
 
@@ -1140,6 +1204,11 @@ document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
     return;
   }
 
+  if (id === DEFAULT_LAYOUT_ID) {
+    document.getElementById('rebindHint').textContent = '— لا يمكن حذف الباكاب الافتراضي';
+    return;
+  }
+
   const backups = loadBackups();
   const idx = backups.findIndex(b => b.id === id);
   if (idx === -1) return;
@@ -1149,39 +1218,51 @@ document.getElementById('deleteLayoutBtn').addEventListener('click', () => {
 
   backups.splice(idx, 1);
   persistBackups(backups);
-  if (activeBackupId === id) activeBackupId = '';
+  if (activeBackupId === id) activeBackupId = DEFAULT_LAYOUT_ID;
+  setSavedLayoutId(activeBackupId);
   populateLayoutSelect();
-  sel.value = '';
+  document.getElementById('layoutSelect').value = activeBackupId;
+  applyLayoutState(loadBackups().find(b => b.id === activeBackupId));
   document.getElementById('rebindHint').textContent = '✓ تم حذف الباكاب المحدد';
 });
 
 // Load from select
 document.getElementById('layoutSelect').addEventListener('change', (e) => {
-  const id = e.target.value;
+  const id = e.target.value || DEFAULT_LAYOUT_ID;
   activeBackupId = id;
-  if (!id) return;
-
+  setSavedLayoutId(id);
   const backups = loadBackups();
   const found = backups.find(b => b.id === id);
   if (!found) return;
-
   applyLayoutState(found);
   populateLayoutSelect();
+  updateBackupButtons();
   document.getElementById('rebindHint').textContent = '✓ تم تحميل ترتيب المفاتيح';
-  e.target.value = id;
 });
 
-// Initialize backup select and ensure default layout exists.
-populateLayoutSelect();
+function applyInitialBackup() {
+  populateLayoutSelect();
+  const backups = loadBackups();
+  const selected = backups.find(b => b.id === activeBackupId) || backups.find(b => b.id === DEFAULT_LAYOUT_ID);
+  if (selected) {
+    document.getElementById('layoutSelect').value = selected.id;
+    applyLayoutState(selected);
+  }
+}
 
-window.addEventListener('beforeunload', autoSaveSelectedBackup);
+window.addEventListener('beforeunload', () => {
+  saveActiveBackupState();
+});
 
 document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => {
   const ok = confirm('Delete ALL saved layouts? This cannot be undone.');
   if (!ok) return;
-  persistBackups([]);
-  activeBackupId = '';
+  const defaultState = getDefaultLayoutState();
+  persistBackups([defaultState]);
+  activeBackupId = DEFAULT_LAYOUT_ID;
+  setSavedLayoutId(activeBackupId);
   populateLayoutSelect();
+  applyLayoutState(defaultState);
   document.getElementById('rebindHint').textContent = '✓ تم حذف كل الباكابات';
 });
 
@@ -1193,7 +1274,7 @@ document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => 
 window.addEventListener('resize', () => { resizeCanvas(); });
 resizeCanvas();
 drawViz();
-buildKeyboard();
+applyInitialBackup();
 
 // Initialize audio on first user interaction
 document.addEventListener('pointerdown', () => { if (!audioCtx) initAudio(); }, { once: true });

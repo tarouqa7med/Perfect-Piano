@@ -22,5 +22,17 @@ try { getAnalytics(app); } catch (_) {}
 
 export const db = getDatabase(app);
 export const DB_ROOT_PATH = "piano_layouts";
+export const DEFAULT_OCTAVE = 4;
+export const DEFAULT_KEY_SHOW = 25;
+export const INITIAL_DATA = {
+  default_layout: {
+    name: 'Default Backup',
+    mapping: {
+      whiteKeys: ['a','s','d','f','g','h','j','k','l',';','\'','enter','pgdn'],
+      blackKeys: ['w','e','t','y','u','o','p',']','\\','pgup'],
+    },
+    isDefault: true,
+  },
+};
 export const FIREBASE_VERSION = "realtime-db-v1";
 
