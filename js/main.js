@@ -214,6 +214,16 @@ function getNoteName(midi) {
 let startOctave = 4;
 let totalKeys = 25;
 
+// Key sizing (adjustable on mobile via plus/minus controls)
+let whiteKeyWidth = 52; // px (visual width of white key)
+let blackKeyWidth = 34; // px
+
+function applyKeySizeVars() {
+  document.documentElement.style.setProperty('--white-key-w', whiteKeyWidth + 'px');
+  document.documentElement.style.setProperty('--black-key-w', blackKeyWidth + 'px');
+}
+applyKeySizeVars();
+
 // Default keyboard mapping pool (used to auto-map *every* visible piano key)
 // Notes: Space/Z/X are handled as controls elsewhere, so they are excluded here.
 const KEY_POOL = (() => {
@@ -363,7 +373,7 @@ function buildKeyboard() {
     if (![1,3,6,8,10].includes(semitone)) whites.push(m);
   }
 
-  const WHITE_W = 53; // including margin
+  const WHITE_W = whiteKeyWidth + 1; // including margin-right (1px)
   keyboard.style.width = (whites.length * WHITE_W) + 'px';
 
   // Build white keys first
@@ -387,7 +397,8 @@ function buildKeyboard() {
     if (!isBlack) { whiteIdx++; continue; }
 
     // Position: between the white key to the left (whiteIdx-1) and right (whiteIdx)
-    const xPos = (whiteIdx - 1) * WHITE_W + WHITE_W - 18;
+    const blackCenterOffset = Math.round(blackKeyWidth / 2);
+    const xPos = (whiteIdx - 1) * WHITE_W + WHITE_W - blackCenterOffset - 1;
     const el = createKey(m, true, xPos);
     keyboard.appendChild(el);
     keyElements[m] = el;
@@ -801,6 +812,8 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 const mobileMoveLeftBtn = document.getElementById('mobileMoveLeftBtn');
 const mobileMoveBtn = document.getElementById('mobileMoveRightBtn');
 const mobileLightBtn = document.getElementById('mobileLightBtn');
+const mobileZoomPlusBtn = document.getElementById('mobileZoomPlusBtn');
+const mobileZoomMinusBtn = document.getElementById('mobileZoomMinusBtn');
 
 function mobileScrollAmount() {
   const kc = document.querySelector('.keyboard-container');
@@ -825,6 +838,29 @@ if (mobileMoveLeftBtn) mobileMoveLeftBtn.addEventListener('click', () => {
 if (mobileLightBtn) mobileLightBtn.addEventListener('click', function() {
   const enabled = document.body.classList.toggle('mobile-light');
   this.classList.toggle('active', enabled);
+});
+
+// Mobile zoom: adjust key widths to fit more/less keys on small screens
+const MIN_WHITE_KEY = 20; // px
+const MAX_WHITE_KEY = 80; // px
+const KEY_STEP = 4; // px per press
+
+function clampKeyWidth(v) { return Math.max(MIN_WHITE_KEY, Math.min(MAX_WHITE_KEY, v)); }
+
+if (mobileZoomPlusBtn) mobileZoomPlusBtn.addEventListener('click', () => {
+  // Plus => show more keys => narrower keys
+  whiteKeyWidth = clampKeyWidth(whiteKeyWidth - KEY_STEP);
+  blackKeyWidth = Math.max(12, Math.round(whiteKeyWidth * 0.65));
+  applyKeySizeVars();
+  buildKeyboard();
+});
+
+if (mobileZoomMinusBtn) mobileZoomMinusBtn.addEventListener('click', () => {
+  // Minus => show fewer keys => wider keys
+  whiteKeyWidth = clampKeyWidth(whiteKeyWidth + KEY_STEP);
+  blackKeyWidth = Math.max(12, Math.round(whiteKeyWidth * 0.65));
+  applyKeySizeVars();
+  buildKeyboard();
 });
 
 // ═══════════════════════════════════════════════════════════

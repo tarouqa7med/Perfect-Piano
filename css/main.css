@@ -301,7 +301,7 @@ header {
 }
 
 .key.white {
-  width: 52px;
+  width: var(--white-key-w, 52px);
   height: 200px;
   background: linear-gradient(180deg, var(--white-key) 0%, #ede8dc 100%);
   border: 1px solid #c8c0ae;
@@ -331,7 +331,7 @@ header {
 /* ── BLACK KEYS ── */
 .key.black {
   position: absolute;
-  width: 34px;
+  width: var(--black-key-w, 34px);
   height: 126px;
   background: linear-gradient(180deg, #2c2030 0%, var(--black-key) 50%, #120e18 100%);
   border-radius: 0 0 6px 6px;
@@ -611,7 +611,7 @@ footer {
 }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 700px) {
+@media (max-width: 500px) {
   header, .controls-panel, .stage-wrap, .info-bar, .rebind-panel, footer {
     padding-left: 16px; padding-right: 16px;
   }
@@ -621,8 +621,8 @@ footer {
   .seg-ctrl button { padding: 10px 14px; font-size: 0.9rem; }
   .icon-btn { width: 44px; height: 44px; font-size: 1.1rem; }
   .layout-select { min-width: 100%; }
-  .key.white { width: 38px; height: 160px; }
-  .key.black { height: 98px; }
+  .key.white { width: var(--white-key-w, 38px); height: 160px; }
+  .key.black { width: var(--black-key-w, 24px); height: 98px; }
   .keyboard { height: 160px; }
   .logo { font-size: 1.2rem; }
   .active-note-name { font-size: 1.8rem; }
