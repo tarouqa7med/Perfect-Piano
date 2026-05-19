@@ -797,6 +797,36 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
   if (!open) { rebindTarget = null; document.querySelectorAll('.rebind-item').forEach(el => el.classList.remove('selected')); }
 });
 
+// Mobile floating controls: scroll keyboard left/right and toggle mobile key light
+const mobileMoveLeftBtn = document.getElementById('mobileMoveLeftBtn');
+const mobileMoveBtn = document.getElementById('mobileMoveRightBtn');
+const mobileLightBtn = document.getElementById('mobileLightBtn');
+
+function mobileScrollAmount() {
+  const kc = document.querySelector('.keyboard-container');
+  if (!kc) return 300;
+  return Math.max(200, Math.round(kc.clientWidth * 0.6));
+}
+
+if (mobileMoveBtn) mobileMoveBtn.addEventListener('click', () => {
+  const kc = document.querySelector('.keyboard-container');
+  if (!kc) return;
+  const amount = mobileScrollAmount();
+  kc.scrollBy({ left: amount, behavior: 'smooth' });
+});
+
+if (mobileMoveLeftBtn) mobileMoveLeftBtn.addEventListener('click', () => {
+  const kc = document.querySelector('.keyboard-container');
+  if (!kc) return;
+  const amount = mobileScrollAmount();
+  kc.scrollBy({ left: -amount, behavior: 'smooth' });
+});
+
+if (mobileLightBtn) mobileLightBtn.addEventListener('click', function() {
+  const enabled = document.body.classList.toggle('mobile-light');
+  this.classList.toggle('active', enabled);
+});
+
 // ═══════════════════════════════════════════════════════════
 // LAYOUT BACKUP (save/load octave+keys+instrument+rebinds)
 // ═══════════════════════════════════════════════════════════

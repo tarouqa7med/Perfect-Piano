@@ -634,3 +634,17 @@ footer {
   .key.white { box-shadow: none; border: 1px solid rgba(0,0,0,0.06); }
   .key.black { box-shadow: none; }
 }
+
+/* Mobile floating controls (desktop-hidden) */
+.mobile-controls { display: none; }
+.mobile-controls .icon-btn { width: 48px; height: 48px; border-radius: 12px; font-size: 1.05rem; }
+.mobile-controls .icon-btn.active { box-shadow: 0 0 12px var(--glow); border-color: var(--accent); background: var(--accent); color: var(--bg); }
+
+/* Toggleable mobile light effect for active keys */
+.mobile-light .key.white.active { box-shadow: 0 0 18px var(--glow), inset 0 4px 8px rgba(0,0,0,0.2); }
+.mobile-light .key.black.active { box-shadow: 0 0 18px var(--glow), inset 0 4px 8px rgba(0,0,0,0.5); }
+
+@media (max-width: 700px) {
+  .mobile-controls { display: flex; position: fixed; right: 16px; bottom: 96px; flex-direction: column; gap: 10px; z-index: 2000; }
+  .mobile-controls .icon-btn { width: 48px; height: 48px; }
+}
