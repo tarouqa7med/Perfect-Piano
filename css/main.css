@@ -611,7 +611,7 @@ footer {
 }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 500px) {
+@media (max-width: 350px) {
   header, .controls-panel, .stage-wrap, .info-bar, .rebind-panel, footer {
     padding-left: 16px; padding-right: 16px;
   }
