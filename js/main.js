@@ -270,12 +270,28 @@ const DEFAULT_LAYOUT_ID = (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ && window.__V
   ? window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id
   : 'default-layout-immutable-v1';
 
+function safeLocalStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (_e) {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_e) {
+    // ignore storage failures so the keyboard still renders
+  }
+}
+
 function getSavedLayoutId() {
-  return localStorage.getItem(LAST_SELECTED_LAYOUT_KEY) || DEFAULT_LAYOUT_ID;
+  return safeLocalStorageGet(LAST_SELECTED_LAYOUT_KEY) || DEFAULT_LAYOUT_ID;
 }
 
 function setSavedLayoutId(id) {
-  localStorage.setItem(LAST_SELECTED_LAYOUT_KEY, id);
+  safeLocalStorageSet(LAST_SELECTED_LAYOUT_KEY, id);
 }
 
 function getDefaultPositionBindings(startMidi, keyCount) {
@@ -847,7 +863,7 @@ function getCurrentLayoutState() {
 
 function loadBackups() {
   try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    const raw = safeLocalStorageGet(LAYOUT_STORAGE_KEY);
     if (!raw) return ensureDefaultLayout([]);
     const parsed = JSON.parse(raw);
     return ensureDefaultLayout(Array.isArray(parsed) ? parsed : []);
@@ -859,7 +875,7 @@ function loadBackups() {
 function persistBackups(backups) {
   const sorted = Array.from(backups);
   sorted.sort((a, b) => b.createdAt - a.createdAt);
-  localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
+  safeLocalStorageSet(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
 }
 
 function ensureDefaultLayout(backups) {
@@ -867,7 +883,11 @@ function ensureDefaultLayout(backups) {
   const hasDefault = backups.some(b => b && b.id === DEFAULT_LAYOUT_ID);
   if (!hasDefault) {
     backups.unshift(getDefaultLayoutState());
-    persistBackups(backups);
+    try {
+      persistBackups(backups);
+    } catch (_e) {
+      // ignore storage failure and keep default in memory
+    }
   }
   return backups;
 }
