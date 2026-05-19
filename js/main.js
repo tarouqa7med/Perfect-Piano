@@ -748,8 +748,12 @@ document.getElementById('rebindBtn').addEventListener('click', function() {
 // ═══════════════════════════════════════════════════════════
 // Storage + immutable default backup
 // ═══════════════════════════════════════════════════════════
-const LAYOUT_STORAGE_KEY = 'piano_layout_backups_v1';
-const DEFAULT_LAYOUT_ID = (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ && window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id) ? window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id : 'default-layout-immutable-v1';
+// ═══════════════════════════════════════════════════════════
+// Firebase-backed layout backups
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_LAYOUT_ID = (window.__VIRTUAL_PIANO_DEFAULT_BACKUP__ && window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id)
+  ? window.__VIRTUAL_PIANO_DEFAULT_BACKUP__.id
+  : 'default-layout-immutable-v1';
 let activeBackupId = '';
 
 function getImmutableDefaultBackup() {
@@ -765,10 +769,7 @@ function getImmutableDefaultBackup() {
   });
 }
 
-
-
 function getDefaultLayoutState() {
-  // Deprecated by immutable default; kept for backward compatibility.
   const d = getImmutableDefaultBackup();
   return {
     id: d.id,
@@ -781,6 +782,7 @@ function getDefaultLayoutState() {
     protected: true,
   };
 }
+
 
 
 function getCurrentLayoutState() {
@@ -836,19 +838,10 @@ function ensureDefaultLayout(backups) {
 }
 
 function autoSaveSelectedBackup() {
-  if (!activeBackupId) return;
-  const backups = loadBackups();
-  const idx = backups.findIndex(b => b.id === activeBackupId);
-  if (idx === -1) return;
-
-  const state = getCurrentLayoutState();
-  state.id = activeBackupId;
-  state.name = backups[idx].name || 'Layout';
-  state.createdAt = backups[idx].createdAt || Date.now();
-
-  backups[idx] = state;
-  persistBackups(backups);
+  // Deprecated: backups are persisted instantly on every action per requirements.
+  // Kept for backward compatibility with beforeunload.
 }
+
 
 function findBackupByName(backups, name, excludeId = null) {
   const normalized = String(name || '').trim().toLowerCase();
