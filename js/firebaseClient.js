@@ -1,9 +1,13 @@
 // Firebase client bootstrap (Realtime Database) for Virtual Piano Studio.
 // Loaded as an ES module from html/piano.html.
 
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getDatabase } from "firebase/database";
+// IMPORTANT:
+// GitHub Pages / static hosting cannot rely on node_modules imports.
+// Use CDN ESM builds so this runs immediately on desktop + mobile.
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDneKIErjTn4iOp3jI9XMnWxlQGpcRx7Ow",
@@ -17,22 +21,29 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
 // Analytics is optional; older/blocked environments might throw.
-try { getAnalytics(app); } catch (_) {}
+try {
+  getAnalytics(app);
+} catch (_) {}
 
 export const db = getDatabase(app);
 export const DB_ROOT_PATH = "piano_layouts";
+
 export const DEFAULT_OCTAVE = 4;
 export const DEFAULT_KEY_SHOW = 25;
+
+// Kept for compatibility (other files may reference it).
 export const INITIAL_DATA = {
   default_layout: {
-    name: 'Default Backup',
+    name: "Default Backup",
     mapping: {
-      whiteKeys: ['a','s','d','f','g','h','j','k','l',';','\'','enter','pgdn'],
-      blackKeys: ['w','e','t','y','u','o','p',']','\\','pgup'],
+      whiteKeys: ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "\\'", "enter", "pgdn"],
+      blackKeys: ["w", "e", "t", "y", "u", "o", "p", "]", "\\\\", "pgup"],
     },
     isDefault: true,
   },
 };
+
 export const FIREBASE_VERSION = "realtime-db-v1";
 

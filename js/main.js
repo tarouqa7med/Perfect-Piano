@@ -942,7 +942,17 @@ function persistBackups(backups) {
   const sorted = Array.from(backups);
   sorted.sort((a, b) => b.createdAt - a.createdAt);
   safeLocalStorageSet(LAYOUT_STORAGE_KEY, JSON.stringify(sorted));
+
+  // Sync to Firebase Realtime Database (single shared Array under DB_ROOT_PATH).
+  try {
+    const db = window.__VIRTUAL_PIANO_DB__;
+    const rootPath = window.__VIRTUAL_PIANO_DB_ROOT_PATH__;
+    if (db && rootPath && typeof window.__VIRTUAL_PIANO_SYNC_BACKUPS_TO_FIREBASE__ === 'function') {
+      window.__VIRTUAL_PIANO_SYNC_BACKUPS_TO_FIREBASE__(sorted);
+    }
+  } catch (_) {}
 }
+
 
 function ensureDefaultLayout(backups) {
   if (!Array.isArray(backups)) backups = [];
@@ -1360,8 +1370,60 @@ document.getElementById('deleteAllLayoutsBtn')?.addEventListener('click', () => 
 window.addEventListener('resize', () => { resizeCanvas(); });
 resizeCanvas();
 drawViz();
+
+// Firebase realtime bootstrap for backups array
+// Loads backups from Firebase into localStorage + refreshes UI.
+(function initRealtimeBackupsListener() {
+  const db = window.__VIRTUAL_PIANO_DB__;
+  const rootPath = window.__VIRTUAL_PIANO_DB_ROOT_PATH__;
+  if (!db || !rootPath) return;
+
+  // Mark hook so persistBackups can call it.
+  window.__VIRTUAL_PIANO_SYNC_BACKUPS_TO_FIREBASE__ = async function syncBackupsArrayToFirebase(backupsArray) {
+    try {
+      const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+      const { ref, set } = mod;
+      const safe = Array.isArray(backupsArray) ? backupsArray : [];
+      await set(ref(db, rootPath), safe);
+    } catch (e) {
+      console.warn('Firebase backup persist failed:', e);
+    }
+  };
+
+  (async () => {
+    try {
+      const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+      const { ref, onValue } = mod;
+      const backupsRef = ref(db, rootPath);
+
+      // Ensure UI is ready even if listener fires very fast.
+      onValue(backupsRef, (snap) => {
+        try {
+          const val = snap.val();
+          if (!Array.isArray(val)) return;
+
+          // Keep local copy and refresh UI.
+          const ensured = ensureDefaultLayout(val);
+          safeLocalStorageSet(LAYOUT_STORAGE_KEY, JSON.stringify(ensured));
+
+          // Rebuild dropdown + try to keep current selection.
+          populateLayoutSelect();
+          const selectedId = document.getElementById('layoutSelect').value || DEFAULT_LAYOUT_ID;
+          const found = ensured.find(b => b.id === selectedId) || ensured.find(b => b.id === DEFAULT_LAYOUT_ID);
+          if (found) applyLayoutState(found);
+        } catch (e) {
+          console.warn('Firebase backup listener apply failed:', e);
+        }
+      });
+    } catch (e) {
+      console.warn('Firebase realtime listener init failed:', e);
+    }
+  })();
+})();
+
 applyInitialBackup();
 
 // Initialize audio on first user interaction
+
 document.addEventListener('pointerdown', () => { if (!audioCtx) initAudio(); }, { once: true });
 document.addEventListener('keydown', () => { if (!audioCtx) initAudio(); }, { once: true });
