@@ -211,8 +211,8 @@ function getNoteName(midi) {
 // ═══════════════════════════════════════════════════════════
 // KEYBOARD LAYOUT (default)
 // ═══════════════════════════════════════════════════════════
-let startOctave = 3;
-let totalKeys = 49;
+let startOctave = 4;
+let totalKeys = 25;
 
 // Default keyboard mapping pool (used to auto-map *every* visible piano key)
 // Notes: Space/Z/X are handled as controls elsewhere, so they are excluded here.
